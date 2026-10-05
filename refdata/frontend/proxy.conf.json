@@ -1,0 +1,4 @@
+{
+  "/api": { "target": "http://localhost:8082", "secure": false },
+  "/actuator": { "target": "http://localhost:8082", "secure": false }
+}

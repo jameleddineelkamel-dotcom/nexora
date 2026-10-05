@@ -1,0 +1,80 @@
+<div class="shell" [class.menu-ouvert]="menuOuvert()">
+  <aside class="sidebar">
+    <a routerLink="/" class="marque" (click)="menuOuvert.set(false)">
+      <img src="nexora-logo.webp" alt="NEXORA — AI-powered trade digital platform" />
+    </a>
+    <div class="module">
+      <span class="pastille"><nx-icon name="database" [size]="15" /></span>
+      <div><b>Référentiel Commun</b><span>Microservice refdata</span></div>
+    </div>
+    <nav>
+      @for (n of nav; track n.lien) {
+        <a [routerLink]="n.lien" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: n.exact }" (click)="menuOuvert.set(false)">
+          <nx-icon [name]="n.icone" /> {{ n.libelle }}
+        </a>
+      }
+    </nav>
+    <a routerLink="/nouvelle-table" class="btn primary nouvelle" (click)="menuOuvert.set(false)"><nx-icon name="plus" /> Nouvelle table</a>
+    <div class="plateforme">
+      <span class="label">Plateforme NEXORA</span>
+      <span class="ms on"><i></i> Référentiel Commun</span>
+      <span class="ms"><i></i> Party Management</span>
+      <span class="ms"><i></i> Procédures</span>
+      <span class="ms"><i></i> e-Services</span>
+      <span class="ms"><i></i> Services DATA</span>
+    </div>
+  </aside>
+  <div class="voile" (click)="menuOuvert.set(false)"></div>
+
+  <div class="principal">
+    <header class="topbar">
+      <button class="btn icon ghost burger" (click)="menuOuvert.set(!menuOuvert())" aria-label="Menu"><nx-icon name="grid" /></button>
+      <button class="recherche" (click)="ouvrirPalette()">
+        <nx-icon name="search" /> <span>Rechercher une table, un code, un libellé…</span> <kbd>Ctrl K</kbd>
+      </button>
+      <div class="grow"></div>
+      <button class="btn icon ghost" (click)="session.basculerTheme()" [attr.aria-label]="session.theme() === 'light' ? 'Mode sombre' : 'Mode clair'">
+        <nx-icon [name]="session.theme() === 'light' ? 'moon' : 'sun'" />
+      </button>
+      @if (editionUtilisateur()) {
+        <form class="utilisateur-form" (submit)="$event.preventDefault(); enregistrerUtilisateur(nom.value)">
+          <input #nom class="input" placeholder="Votre nom (historique)" [value]="session.utilisateur()" aria-label="Votre nom" />
+          <button class="btn sm" type="submit"><nx-icon name="check" /></button>
+        </form>
+      } @else {
+        <button class="utilisateur" (click)="editionUtilisateur.set(true)" title="Auteur enregistré dans l'historique">
+          <span class="avatar">{{ initiales() }}</span><span class="nom">{{ session.utilisateur() }}</span>
+        </button>
+      }
+    </header>
+    <main><router-outlet /></main>
+  </div>
+</div>
+
+@if (palette()) {
+  <div class="overlay" (click)="fermerPalette()"></div>
+  <div class="modal palette" role="dialog" aria-label="Recherche globale">
+    <div class="palette-champ">
+      <nx-icon name="search" [size]="20" />
+      <input #champ [value]="requete()" (input)="saisir($any($event.target).value)" placeholder="Pays, devise, port, Incoterm, code UN/LOCODE…" />
+      @if (recherche()) { <span class="muted small">…</span> }
+      <kbd>Échap</kbd>
+    </div>
+    <div class="palette-resultats">
+      @for (r of liste(); track r.type + r.lien.join('/') + r.code; let i = $index) {
+        <button class="resultat" [class.sel]="i === selection()" (mouseenter)="selection.set(i)" (click)="aller(r)">
+          <span class="type" [class.table]="r.type === 'table'"><nx-icon [name]="r.type === 'table' ? 'table' : 'tag'" [size]="15" /></span>
+          <span class="grow"><b>{{ r.titre }}</b><span class="muted small"> — {{ r.sous }}</span></span>
+          <span class="code-tag">{{ r.code }}</span>
+        </button>
+      } @empty {
+        <div class="empty small">
+          @if (requete().trim().length < 2) {
+            Recherche dans les 119 tables et 120 000 codes du référentiel, sans tenir compte des accents.<br />
+            Exemples : <i>douala</i>, <i>cote ivoire</i>, <i>FCA</i>, <i>conteneur</i>, <i>PAYTERMS</i>.
+          } @else if (!recherche()) { Aucun résultat pour « {{ requete() }} ». }
+        </div>
+      }
+    </div>
+  </div>
+}

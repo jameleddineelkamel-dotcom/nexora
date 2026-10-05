@@ -1,0 +1,7 @@
+﻿{
+  "name": "nexora-refdata-seed",
+  "private": true,
+  "description": "Construit le jeu initial du Référentiel Commun NEXORA à partir du rapport GUCE et des classeurs UN/CEFACT",
+  "scripts": { "build": "node construire-seed.mjs" },
+  "dependencies": { "@xmldom/xmldom": "0.9.8", "adm-zip": "0.5.16", "xlsx": "0.18.5" }
+}

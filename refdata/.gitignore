@@ -1,0 +1,5 @@
+.env.local
+*.log
+.idea/
+*.iml
+tools/seed/node_modules/

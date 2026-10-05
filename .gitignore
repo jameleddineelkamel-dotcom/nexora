@@ -1,0 +1,8 @@
+.env.local
+*.log
+.idea/
+*.iml
+node_modules/
+target/
+dist/
+.angular/
