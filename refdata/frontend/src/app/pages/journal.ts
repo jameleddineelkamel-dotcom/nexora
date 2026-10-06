@@ -1,14 +1,14 @@
 import { Component } from '@angular/core';
 import { HistoryList } from '../shared/history-list';
+import { TPipe } from '../core/i18n';
 
 @Component({
   selector: 'nx-journal',
-  imports: [HistoryList],
+  imports: [HistoryList, TPipe],
   template: `
     <div>
-      <h1>Historique des modifications</h1>
-      <p class="muted">Toute création, modification, invalidation ou réactivation — par l'interface, l'API, un import ou un SQL direct —
-        est tracée par la base de données avec son auteur, son canal, son motif et le détail avant / après.</p>
+      <h1>{{ 'Historique des modifications' | t }}</h1>
+      <p class="muted">{{ 'Toute création, modification, invalidation ou réactivation — par l\\'interface, l\\'API, un import ou un SQL direct — est tracée par la base de données avec son auteur, son canal, son motif et le détail avant / après.' | t }}</p>
     </div>
     <nx-history-list [filtres]="true" [taille]="40" />
   `,

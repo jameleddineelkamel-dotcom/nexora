@@ -3,13 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { LookupItem } from '../core/models';
+import { I18n } from '../core/i18n';
 
 /** Saisie d'un code d'une autre table de référence, avec suggestions (service lookup). */
 @Component({
   selector: 'nx-ref-picker',
   template: `
     <div class="picker">
-      <input class="input mono" [value]="value() ?? ''" [placeholder]="'Code ' + table()" [attr.aria-label]="label()"
+      <input class="input mono" [value]="value() ?? ''" [placeholder]="table()" [attr.aria-label]="label()"
         (input)="saisir($any($event.target).value)" (focus)="saisir(value() ?? '')" (blur)="fermer()" autocomplete="off" />
       @if (ouvert() && suggestions().length) {
         <ul class="liste">
@@ -29,6 +30,7 @@ import { LookupItem } from '../core/models';
 })
 export class RefPicker {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18n);
   readonly table = input.required<string>();
   readonly label = input('');
   readonly value = model<string | null>(null);
@@ -37,7 +39,7 @@ export class RefPicker {
   private readonly q$ = new Subject<string>();
 
   constructor() {
-    this.q$.pipe(debounceTime(150), switchMap(q => this.api.lookup(this.table(), q, 12).pipe(catchError(() => of([])))),
+    this.q$.pipe(debounceTime(150), switchMap(q => this.api.lookup(this.table(), q, 12, this.i18n.langue()).pipe(catchError(() => of([])))),
       takeUntilDestroyed(inject(DestroyRef))).subscribe(s => this.suggestions.set(s));
   }
 

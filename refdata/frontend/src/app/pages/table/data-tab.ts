@@ -1,39 +1,39 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { ApiService, erreurs } from '../../core/api.service';
 import { ColumnDef, Entry, Page, TableDef } from '../../core/models';
+import { I18N, I18n } from '../../core/i18n';
 import { Icon } from '../../shared/icon';
 import { EntryDrawer } from './entry-drawer';
 
 @Component({
   selector: 'nx-data-tab',
-  imports: [DecimalPipe, Icon, EntryDrawer],
+  imports: [Icon, EntryDrawer, ...I18N],
   template: `
     <div class="card pad barre-outils">
       <div class="recherche">
         <nx-icon name="search" />
-        <input [value]="q()" (input)="chercher($any($event.target).value)" placeholder="Rechercher un code ou un libellé (sans accents)…" aria-label="Rechercher" />
+        <input [value]="q()" (input)="chercher($any($event.target).value)" [placeholder]="'Rechercher un code ou un libellé (sans accents)…' | t" [attr.aria-label]="'Rechercher' | t" />
       </div>
-      <div class="statuts" role="group" aria-label="Statut">
+      <div class="statuts" role="group" [attr.aria-label]="'Statut' | t">
         @for (s of statuts; track s.code) {
-          <button class="btn sm" [class.on]="statut() === s.code" (click)="statut.set(s.code); page.set(0)">{{ s.label }}</button>
+          <button class="btn sm" [class.on]="statut() === s.code" (click)="statut.set(s.code); page.set(0)">{{ s.label | t }}</button>
         }
       </div>
-      <label class="date" title="Afficher les codes valides à cette date (voyage dans le temps)">
-        <nx-icon name="calendar" [size]="16" /> Valide au
+      <label class="date" [title]="'Afficher les codes valides à cette date (voyage dans le temps)' | t">
+        <nx-icon name="calendar" [size]="16" /> {{ 'Valide au' | t }}
         <input class="input" type="date" [value]="date()" (input)="date.set($any($event.target).value); page.set(0)" />
       </label>
       <span class="grow"></span>
-      <button class="btn primary" (click)="ouvrir(null)" [disabled]="table().status === 'ARCHIVED'"><nx-icon name="plus" /> Nouveau code</button>
+      <button class="btn primary" (click)="ouvrir(null)" [disabled]="table().status === 'ARCHIVED'"><nx-icon name="plus" /> {{ 'Nouveau code' | t }}</button>
     </div>
 
     @if (hierarchique()) {
       <nav class="fil small">
-        <button class="btn ghost sm" (click)="racine()"><nx-icon name="tree" [size]="15" /> Racine</button>
+        <button class="btn ghost sm" (click)="racine()"><nx-icon name="tree" [size]="15" /> {{ 'Racine' | t }}</button>
         @for (p of chemin(); track p; let i = $index) {
           <nx-icon name="chevron" [size]="13" /><button class="btn ghost sm" (click)="remonter(i)">{{ p }}</button>
         }
-        <label class="check muted"><input type="checkbox" [checked]="aplati()" (change)="aplati.set($any($event.target).checked); page.set(0)" /> Vue à plat</label>
+        <label class="check muted"><input type="checkbox" [checked]="aplati()" (change)="aplati.set($any($event.target).checked); page.set(0)" /> {{ 'Vue à plat' | t }}</label>
       </nav>
     }
 
@@ -41,20 +41,20 @@ import { EntryDrawer } from './entry-drawer';
     <div class="card scroll-x">
       <table class="datagrid">
         <thead><tr>
-          <th (click)="trier('code')">{{ colonnes().code?.labelFr ?? 'Code' }} {{ fleche('code') }}</th>
-          @if (colonnes().fr) { <th (click)="trier('labelFr')">{{ colonnes().fr!.labelFr }} {{ fleche('labelFr') }}</th> }
-          @if (colonnes().en) { <th (click)="trier('labelEn')">{{ colonnes().en!.labelFr }} {{ fleche('labelEn') }}</th> }
-          @for (c of colonnes().attrs; track c.key) { <th>{{ c.labelFr }}</th> }
-          @if (table().parentTableCode && !hierarchique()) { <th>Parent</th> }
-          <th (click)="trier('validTo')">Validité {{ fleche('validTo') }}</th>
-          <th>Statut</th>
+          <th (click)="trier('code')">{{ libelleCol(colonnes().code, 'Code') }} {{ fleche('code') }}</th>
+          @if (colonnes().fr) { <th (click)="trier('labelFr')">{{ libelleCol(colonnes().fr) }} {{ fleche('labelFr') }}</th> }
+          @if (colonnes().en) { <th (click)="trier('labelEn')">{{ libelleCol(colonnes().en) }} {{ fleche('labelEn') }}</th> }
+          @for (c of colonnes().attrs; track c.key) { <th>{{ libelleCol(c) }}</th> }
+          @if (table().parentTableCode && !hierarchique()) { <th>{{ 'Parent' | t }}</th> }
+          <th (click)="trier('validTo')">{{ 'Validité' | t }} {{ fleche('validTo') }}</th>
+          <th>{{ 'Statut' | t }}</th>
         </tr></thead>
         <tbody>
           @for (e of resultat()?.items ?? []; track e.code) {
             <tr [class.invalid]="e.status === 'INVALID'" (click)="ouvrir(e)">
               <td><span class="code-tag">{{ e.code }}</span>
                 @if (hierarchique() && e.childCount) {
-                  <button class="btn ghost sm enfants" (click)="$event.stopPropagation(); descendre(e.code)" title="Voir les sous-codes">
+                  <button class="btn ghost sm enfants" (click)="$event.stopPropagation(); descendre(e.code)" [title]="'Voir les sous-codes' | t">
                     <nx-icon name="tree" [size]="14" /> {{ e.childCount }}</button>
                 }
               </td>
@@ -63,14 +63,14 @@ import { EntryDrawer } from './entry-drawer';
               @for (c of colonnes().attrs; track c.key) { <td class="small attr">{{ valeur(e, c) }}</td> }
               @if (table().parentTableCode && !hierarchique()) { <td class="mono small">{{ e.parentCode }}</td> }
               <td class="small muted nowrap">{{ periode(e) }}</td>
-              <td><span class="chip" [class.ok]="e.status === 'ACTIVE'" [class.warn]="e.status === 'INVALID'">{{ e.status === 'ACTIVE' ? 'Actif' : 'Invalidé' }}</span></td>
+              <td><span class="chip" [class.ok]="e.status === 'ACTIVE'" [class.warn]="e.status === 'INVALID'">{{ (e.status === 'ACTIVE' ? 'Actif' : 'Invalidé') | t }}</span></td>
             </tr>
           } @empty {
             <tr><td [attr.colspan]="10" class="empty">
-              @if (chargement()) { Chargement… }
+              @if (chargement()) { {{ 'Chargement…' | t }} }
               @else if (table().entryCount === 0) {
-                Cette table n'est pas encore alimentée. Ajoutez des codes un par un ou chargez un fichier depuis l'onglet « Import / export ».
-              } @else { Aucun code ne correspond à ces critères. }
+                {{ 'Cette table n\\'est pas encore alimentée. Ajoutez des codes un par un ou chargez un fichier depuis l\\'onglet « Import / export ».' | t }}
+              } @else { {{ 'Aucun code ne correspond à ces critères.' | t }} }
             </td></tr>
           }
         </tbody>
@@ -78,10 +78,10 @@ import { EntryDrawer } from './entry-drawer';
     </div>
     @if (resultat(); as r) {
       <div class="between pagination">
-        <span class="muted small">{{ r.total | number: '1.0-0' : 'fr-FR' }} code(s) · page {{ r.page + 1 }} / {{ pages() }}</span>
+        <span class="muted small">{{ '{0} code(s) · page {1} / {2}' | t: (r.total | num) : r.page + 1 : pages() }}</span>
         <div class="row">
-          <button class="btn sm" (click)="page.set(page() - 1)" [disabled]="page() === 0"><nx-icon name="back" [size]="15" /> Précédent</button>
-          <button class="btn sm" (click)="page.set(page() + 1)" [disabled]="page() + 1 >= pages()">Suivant <nx-icon name="chevron" [size]="15" /></button>
+          <button class="btn sm" (click)="page.set(page() - 1)" [disabled]="page() === 0"><nx-icon name="back" [size]="15" /> {{ 'Précédent' | t }}</button>
+          <button class="btn sm" (click)="page.set(page() + 1)" [disabled]="page() + 1 >= pages()">{{ 'Suivant' | t }} <nx-icon name="chevron" [size]="15" /></button>
         </div>
       </div>
     }
@@ -112,6 +112,7 @@ import { EntryDrawer } from './entry-drawer';
 })
 export class DataTab {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18n);
   readonly table = input.required<TableDef>();
   readonly recherche = input('');
 
@@ -130,7 +131,7 @@ export class DataTab {
   protected readonly statuts = [{ code: 'ALL', label: 'Tous' }, { code: 'ACTIVE', label: 'Actifs' }, { code: 'INVALID', label: 'Invalidés' }];
   private minuterie?: ReturnType<typeof setTimeout>;
 
-  /** Hiérarchie interne (ex. FCC groupe › sous-groupe, NACAM, moyens de transport) : navigation par niveau. */
+  /** Hiérarchie interne (ex. moyens de transport, subdivisions) : navigation par niveau. */
   protected readonly hierarchique = computed(() => this.table().parentTableCode === this.table().code && !this.q() && !this.aplati());
   protected readonly pages = computed(() => Math.max(1, Math.ceil((this.resultat()?.total ?? 0) / 50)));
   /** Colonnes affichées : les attributs renseignés sur la page courante passent en premier (5 au plus). */
@@ -154,15 +155,17 @@ export class DataTab {
       untracked(() => { this.q.set(r); this.page.set(0); this.chemin.set([]); });
     });
     effect(() => {
-      const f = {
-        q: this.q(), status: this.statut(), validAt: this.date(), page: this.page(), size: 50,
-        sort: this.tri().cle, desc: this.tri().desc,
-        parent: this.hierarchique() ? this.chemin().at(-1) : undefined,
-        roots: this.hierarchique() && this.chemin().length === 0,
-      };
+      const f = this.filtre();
       const code = this.table().code;
       untracked(() => this.charger(code, f));
     });
+  }
+
+  private filtre(): Record<string, unknown> {
+    return {
+      q: this.q(), status: this.statut(), validAt: this.date(), page: this.page(), size: 50, sort: this.tri().cle, desc: this.tri().desc,
+      parent: this.hierarchique() ? this.chemin().at(-1) : undefined, roots: this.hierarchique() && this.chemin().length === 0,
+    };
   }
 
   private charger(code: string, f: Record<string, unknown>): void {
@@ -171,6 +174,10 @@ export class DataTab {
       next: p => { this.resultat.set(p); this.chargement.set(false); this.erreur.set(null); },
       error: e => { this.erreur.set(erreurs(e).join(' ')); this.chargement.set(false); },
     });
+  }
+
+  protected libelleCol(c: ColumnDef | undefined, defaut = ''): string {
+    return c ? this.i18n.libelle(c.labelFr, c.labelEn) : this.i18n.t(defaut);
   }
 
   protected chercher(v: string): void {
@@ -195,24 +202,20 @@ export class DataTab {
 
   protected enregistre(e: Entry): void {
     this.edition.set(undefined);
-    this.toast.set(`${e.code} enregistré`);
+    this.toast.set(this.i18n.t('{0} enregistré', e.code));
     setTimeout(() => this.toast.set(null), 2200);
-    this.page.set(this.page());
-    this.charger(this.table().code, {
-      q: this.q(), status: this.statut(), validAt: this.date(), page: this.page(), size: 50, sort: this.tri().cle, desc: this.tri().desc,
-      parent: this.hierarchique() ? this.chemin().at(-1) : undefined, roots: this.hierarchique() && this.chemin().length === 0,
-    });
+    this.charger(this.table().code, this.filtre());
   }
 
   protected valeur(e: Entry, c: ColumnDef): string {
     const v = e.attributes?.[c.key];
     if (v === null || v === undefined) return '';
-    if (typeof v === 'boolean') return v ? 'Oui' : 'Non';
+    if (typeof v === 'boolean') return this.i18n.t(v ? 'Oui' : 'Non');
     return String(v);
   }
 
   protected periode(e: Entry): string {
-    if (!e.validFrom && !e.validTo) return 'Permanente';
-    return `${e.validFrom ? 'du ' + e.validFrom : ''} ${e.validTo ? 'au ' + e.validTo : ''}`.trim();
+    if (!e.validFrom && !e.validTo) return this.i18n.t('Permanente');
+    return `${e.validFrom ? this.i18n.t('du {0}', e.validFrom) : ''} ${e.validTo ? this.i18n.t('au {0}', e.validTo) : ''}`.trim();
   }
 }

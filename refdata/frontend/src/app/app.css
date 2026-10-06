@@ -1,8 +1,13 @@
 .shell { display: grid; grid-template-columns: 252px 1fr; min-height: 100vh; }
 .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--line);
   padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; z-index: 30; }
-.marque { display: block; border-radius: 14px; background: #fff; padding: 4px; text-align: center; }
-.marque img { width: 100%; max-width: 190px; height: auto; display: block; margin: -26px auto -30px; }
+.marque { display: block; border-radius: 14px; background: #fff; padding: 8px 6px; text-align: center; overflow: hidden; }
+/* Logo horizontal (marges blanches de l'image recadrées) */
+.marque img { width: 108%; height: auto; display: block; margin: -9% -4% -8%; }
+.langues { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.langues .btn { height: 28px; border: 0; padding: 0 9px; font-size: 12px; }
+.langues .btn.on { background: var(--navy); color: #fff; }
+:root[data-theme="dark"] .langues .btn.on { background: var(--accent); color: var(--accent-text); }
 .module { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
 .module b { display: block; font-size: 13px; }
 .module span { font-size: 11.5px; color: var(--muted); }

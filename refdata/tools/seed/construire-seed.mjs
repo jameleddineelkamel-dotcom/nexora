@@ -394,9 +394,11 @@ function principal() {
   console.log(`Rapport : ${inventaire.size} tables inventoriées, ${fiches.size} fiches, ${definitions.length} structures REP_.`);
 
   const tables = new Map();
+  // Les renvois aux fichiers joints du rapport sont retirés (les documents sont gérés comme pièces jointes)
+  const sansFichiers = s => s == null ? s : s.replace(/\s*\(\s*Fichiers?\s+Joints?\s*:[^)]*\)/gi, '').replace(/[\s;,]+$/, '').trim() || null;
   const metaDeFiche = num => {
     const f = fiches.get(num), inv = inventaire.get(num);
-    const m = { ...(f?.meta ?? {}) };
+    const m = Object.fromEntries(Object.entries(f?.meta ?? {}).map(([k, v]) => [k, sansFichiers(v)]).filter(([, v]) => v));
     delete m.shortLabel;
     return {
       number: num, ficheTitle: f ? phraseCase(f.titre) : inv ? phraseCase(inv.titre) : null,

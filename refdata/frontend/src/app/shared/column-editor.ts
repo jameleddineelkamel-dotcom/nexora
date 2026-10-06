@@ -2,57 +2,58 @@ import { Component, inject, input, model, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { ColumnDef, DataType, ROLES, Role, TYPES, TableSummary } from '../core/models';
 import { Icon } from './icon';
+import { I18N } from '../core/i18n';
 
 /** Éditeur de la structure d'une table : colonnes typées, rôles, références et données UN/CEFACT (balise XML, UNTDED). */
 @Component({
   selector: 'nx-column-editor',
-  imports: [Icon],
+  imports: [Icon, ...I18N],
   template: `
     <div class="colonnes">
       @for (c of colonnes(); track $index; let i = $index) {
         <div class="col card" [class.ouverte]="ouverte() === i" [attr.data-role]="c.role">
           <div class="ligne">
             <div class="ordre">
-              <button class="btn ghost icon sm" (click)="deplacer(i, -1)" [disabled]="i === 0" aria-label="Monter">↑</button>
-              <button class="btn ghost icon sm" (click)="deplacer(i, 1)" [disabled]="i === colonnes().length - 1" aria-label="Descendre">↓</button>
+              <button class="btn ghost icon sm" (click)="deplacer(i, -1)" [disabled]="i === 0" [attr.aria-label]="'Monter' | t">↑</button>
+              <button class="btn ghost icon sm" (click)="deplacer(i, 1)" [disabled]="i === colonnes().length - 1" [attr.aria-label]="'Descendre' | t">↓</button>
             </div>
-            <input class="input" [value]="c.labelFr" (input)="libelle(i, $any($event.target).value)" placeholder="Libellé de la colonne" aria-label="Libellé" />
-            <input class="input mono cle" [value]="c.key" (input)="maj(i, { key: $any($event.target).value })" placeholder="cle" aria-label="Clé" />
-            <select class="input" [value]="c.role" (change)="maj(i, { role: $any($event.target).value })" aria-label="Rôle">
-              @for (r of roles; track r.code) { <option [value]="r.code" [selected]="r.code === c.role">{{ r.label }}</option> }
+            <input class="input" [value]="c.labelFr" (input)="libelle(i, $any($event.target).value)" [placeholder]="'Libellé de la colonne' | t" [attr.aria-label]="'Libellé' | t" />
+            <input class="input mono cle" [value]="c.key" (input)="maj(i, { key: $any($event.target).value })" [placeholder]="'cle' | t" [attr.aria-label]="'Clé' | t" />
+            <select class="input" [value]="c.role" (change)="maj(i, { role: $any($event.target).value })" [attr.aria-label]="'Rôle' | t">
+              @for (r of roles; track r.code) { <option [value]="r.code" [selected]="r.code === c.role">{{ r.label | t }}</option> }
             </select>
-            <select class="input" [value]="c.dataType" (change)="maj(i, { dataType: $any($event.target).value })" aria-label="Type" [disabled]="c.role !== 'ATTRIBUTE'">
-              @for (t of types; track t.code) { <option [value]="t.code" [selected]="t.code === c.dataType">{{ t.label }}</option> }
+            <select class="input" [value]="c.dataType" (change)="maj(i, { dataType: $any($event.target).value })" [attr.aria-label]="'Type' | t" [disabled]="c.role !== 'ATTRIBUTE'">
+              @for (t of types; track t.code) { <option [value]="t.code" [selected]="t.code === c.dataType">{{ t.label | t }}</option> }
             </select>
             @if (c.dataType === 'CODE_REF') {
-              <select class="input" [value]="c.refTableCode ?? ''" (change)="maj(i, { refTableCode: $any($event.target).value })" aria-label="Table référencée">
-                <option value="">Table référencée…</option>
+              <select class="input" [value]="c.refTableCode ?? ''" (change)="maj(i, { refTableCode: $any($event.target).value })" [attr.aria-label]="'Table référencée' | t">
+                <option value="">{{ 'Table référencée…' | t }}</option>
                 @for (t of tables(); track t.code) { <option [value]="t.code" [selected]="t.code === c.refTableCode">{{ t.code }}</option> }
               </select>
             } @else {
               <input class="input" type="number" min="1" [value]="c.maxLength ?? ''" (input)="maj(i, { maxLength: $any($event.target).value ? +$any($event.target).value : null })"
-                placeholder="Long. max" aria-label="Longueur maximale" [disabled]="!['STRING', 'TEXT'].includes(c.dataType)" />
+                [placeholder]="'Long. max' | t" [attr.aria-label]="'Longueur maximale' | t" [disabled]="!['STRING', 'TEXT'].includes(c.dataType)" />
             }
-            <label class="check small"><input type="checkbox" [checked]="c.required" (change)="maj(i, { required: $any($event.target).checked })" [disabled]="c.role === 'CODE'" /> Oblig.</label>
-            <button class="btn ghost icon sm" (click)="ouverte.set(ouverte() === i ? -1 : i)" aria-label="Détails"><nx-icon name="info" [size]="16" /></button>
-            <button class="btn ghost icon sm danger" (click)="retirer(i)" [disabled]="c.role === 'CODE'" aria-label="Retirer"><nx-icon name="x" [size]="16" /></button>
+            <label class="check small"><input type="checkbox" [checked]="c.required" (change)="maj(i, { required: $any($event.target).checked })" [disabled]="c.role === 'CODE'" /> {{ 'Oblig.' | t }}</label>
+            <button class="btn ghost icon sm" (click)="ouverte.set(ouverte() === i ? -1 : i)" [attr.aria-label]="'Détails' | t"><nx-icon name="info" [size]="16" /></button>
+            <button class="btn ghost icon sm danger" (click)="retirer(i)" [disabled]="c.role === 'CODE'" [attr.aria-label]="'Retirer' | t"><nx-icon name="x" [size]="16" /></button>
           </div>
           @if (ouverte() === i) {
             <div class="details form-grid">
-              <div class="field"><label>Libellé anglais</label><input class="input" [value]="c.labelEn ?? ''" (input)="maj(i, { labelEn: $any($event.target).value })" /></div>
-              <div class="field"><label>Balise XML</label><input class="input mono" [value]="c.xmlTag ?? ''" (input)="maj(i, { xmlTag: $any($event.target).value })" placeholder="CountryIdAlpha2" /></div>
-              <div class="field"><label>Référence UNTDED / ISO 7372</label><input class="input mono" [value]="c.untded ?? ''" (input)="maj(i, { untded: $any($event.target).value })" placeholder="3207" /></div>
-              <div class="field"><label>Cardinalité</label><input class="input mono" [value]="c.cardinality ?? ''" (input)="maj(i, { cardinality: $any($event.target).value })" placeholder="(1,1)" /></div>
-              <div class="field"><label>Unité de mesure</label><input class="input" [value]="c.unit ?? ''" (input)="maj(i, { unit: $any($event.target).value })" /></div>
-              <div class="field"><label>Format (expression régulière)</label><input class="input mono" [value]="c.pattern ?? ''" (input)="maj(i, { pattern: $any($event.target).value })" placeholder="^[A-Z]{2}$" /></div>
-              <div class="field full"><label>Définition</label><input class="input" [value]="c.definition ?? ''" (input)="maj(i, { definition: $any($event.target).value })" /></div>
-              <div class="field full"><label>Commentaire (règles de typologie…)</label><input class="input" [value]="c.comment ?? ''" (input)="maj(i, { comment: $any($event.target).value })" /></div>
+              <div class="field"><label>{{ 'Libellé anglais' | t }}</label><input class="input" [value]="c.labelEn ?? ''" (input)="maj(i, { labelEn: $any($event.target).value })" /></div>
+              <div class="field"><label>{{ 'Balise XML' | t }}</label><input class="input mono" [value]="c.xmlTag ?? ''" (input)="maj(i, { xmlTag: $any($event.target).value })" placeholder="CountryIdAlpha2" /></div>
+              <div class="field"><label>{{ 'Référence UNTDED / ISO 7372' | t }}</label><input class="input mono" [value]="c.untded ?? ''" (input)="maj(i, { untded: $any($event.target).value })" placeholder="3207" /></div>
+              <div class="field"><label>{{ 'Cardinalité' | t }}</label><input class="input mono" [value]="c.cardinality ?? ''" (input)="maj(i, { cardinality: $any($event.target).value })" placeholder="(1,1)" /></div>
+              <div class="field"><label>{{ 'Unité de mesure' | t }}</label><input class="input" [value]="c.unit ?? ''" (input)="maj(i, { unit: $any($event.target).value })" /></div>
+              <div class="field"><label>{{ 'Format (expression régulière)' | t }}</label><input class="input mono" [value]="c.pattern ?? ''" (input)="maj(i, { pattern: $any($event.target).value })" placeholder="^[A-Z]{2}$" /></div>
+              <div class="field full"><label>{{ 'Définition' | t }}</label><input class="input" [value]="c.definition ?? ''" (input)="maj(i, { definition: $any($event.target).value })" /></div>
+              <div class="field full"><label>{{ 'Commentaire (règles de typologie…)' | t }}</label><input class="input" [value]="c.comment ?? ''" (input)="maj(i, { comment: $any($event.target).value })" /></div>
             </div>
           }
         </div>
       }
     </div>
-    <button class="btn" (click)="ajouter()"><nx-icon name="plus" /> Ajouter une colonne</button>
+    <button class="btn" (click)="ajouter()"><nx-icon name="plus" /> {{ 'Ajouter une colonne' | t }}</button>
   `,
   styles: [`
     :host { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }

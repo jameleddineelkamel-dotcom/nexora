@@ -1,34 +1,33 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { PHASES, Phase, TableSummary } from '../core/models';
 import { Icon } from '../shared/icon';
+import { I18N, I18n } from '../core/i18n';
 
 /** Les tables du référentiel vues à travers le modèle de référence de la chaîne logistique internationale (UN/CEFACT ISCRM). */
 @Component({
   selector: 'nx-bsp-page',
-  imports: [RouterLink, DecimalPipe, Icon],
+  imports: [RouterLink, Icon, ...I18N],
   template: `
     <div>
       <h1>Buy · Ship · Pay</h1>
-      <p class="muted">Modèle de référence de la chaîne logistique internationale de l'UN/CEFACT : chaque table de référence est rattachée
-        aux phases de la transaction commerciale où elle intervient.</p>
+      <p class="muted">{{ 'Modèle de référence de la chaîne logistique internationale de l\\'UN/CEFACT : chaque table de référence est rattachée aux phases de la transaction commerciale où elle intervient.' | t }}</p>
     </div>
     <div class="chaine">
       @for (p of phases; track p.code) {
         <section class="phase card" [attr.data-p]="p.code">
           <header>
             <span class="lettre">{{ p.label[0] }}</span>
-            <div><h2>{{ p.label }} <span class="muted">— {{ p.sub }}</span></h2><span class="small muted">{{ tables(p.code).length }} tables</span></div>
+            <div><h2>{{ p.label }} <span class="muted">— {{ p.sub | t }}</span></h2><span class="small muted">{{ '{0} tables' | t: tables(p.code).length }}</span></div>
           </header>
-          <div class="processus">@for (x of p.processes; track x) { <span class="chip">{{ x }}</span> }</div>
-          <input class="input" placeholder="Filtrer…" [value]="filtre()[p.code] ?? ''" (input)="filtrer(p.code, $any($event.target).value)" [attr.aria-label]="'Filtrer ' + p.label" />
+          <div class="processus">@for (x of p.processes; track x) { <span class="chip">{{ x | t }}</span> }</div>
+          <input class="input" [placeholder]="'Filtrer…' | t" [value]="filtre()[p.code] ?? ''" (input)="filtrer(p.code, $any($event.target).value)" [attr.aria-label]="'Filtrer' | t" />
           <div class="liste">
             @for (t of tables(p.code); track t.code) {
               <a [routerLink]="['/tables', t.code]" class="item">
-                <span class="grow"><b>{{ t.nameFr }}</b><span class="code-tag">{{ t.code }}</span></span>
-                @if (t.entryCount) { <span class="mono small">{{ t.entryCount | number: '1.0-0' : 'fr-FR' }}</span> } @else { <span class="chip warn">vide</span> }
+                <span class="grow"><b>{{ t.nameFr | lib: t.nameEn }}</b><span class="code-tag">{{ t.code }}</span></span>
+                @if (t.entryCount) { <span class="mono small">{{ t.entryCount | num }}</span> } @else { <span class="chip warn">{{ 'vide' | t }}</span> }
               </a>
             }
           </div>
@@ -56,6 +55,7 @@ import { Icon } from '../shared/icon';
 })
 export class BspPage {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18n);
   protected readonly phases = PHASES;
   protected readonly toutes = signal<TableSummary[]>([]);
   protected readonly filtre = signal<Record<string, string>>({});
@@ -67,7 +67,7 @@ export class BspPage {
   protected tables(p: Phase): TableSummary[] {
     const f = (this.filtre()[p] ?? '').toLowerCase();
     return this.toutes().filter(t => t.bspPhases.includes(p) && (!f || `${t.code} ${t.nameFr}`.toLowerCase().includes(f)))
-      .sort((a, b) => b.entryCount - a.entryCount || a.nameFr.localeCompare(b.nameFr));
+      .sort((a, b) => b.entryCount - a.entryCount || this.i18n.libelle(a.nameFr, a.nameEn).localeCompare(this.i18n.libelle(b.nameFr, b.nameEn)));
   }
 
   protected filtrer(p: Phase, v: string): void { this.filtre.set({ ...this.filtre(), [p]: v }); }

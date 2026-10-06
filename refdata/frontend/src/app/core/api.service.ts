@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpInterceptorFn, HttpParams } from '@a
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  Activity, Category, Dashboard, Entry, HistoryEvent, ImportResult, ImportRun, LookupItem, MetadataField, Page, Proposition,
+  Activity, Attachment, Category, Dashboard, Entry, HistoryEvent, ImportResult, ImportRun, LookupItem, MetadataField, Page, Proposition,
   SearchResults, TableDef, TableSummary,
 } from './models';
 
@@ -99,8 +99,8 @@ export class ApiService {
   reactiver(table: string, code: string, reason: string): Observable<Entry> {
     return this.http.post<Entry>(`${this.api}/tables/${table}/entry/reactivate`, { reason }, { params: params({ code }) });
   }
-  lookup(table: string, q: string, limit = 20): Observable<LookupItem[]> {
-    return this.http.get<LookupItem[]>(`${this.api}/lookup/${table}`, { params: params({ q, limit }) });
+  lookup(table: string, q: string, limit = 20, lang = 'fr'): Observable<LookupItem[]> {
+    return this.http.get<LookupItem[]>(`${this.api}/lookup/${table}`, { params: params({ q, limit, lang }) });
   }
 
   historique(f: Record<string, unknown>): Observable<Page<HistoryEvent>> {
@@ -122,6 +122,18 @@ export class ApiService {
   urlExport(table: string, format: string, status = 'ALL'): string {
     return `${this.api}/tables/${table}/export?format=${format}&status=${status}`;
   }
+
+  piecesJointes(table: string): Observable<Attachment[]> { return this.http.get<Attachment[]>(`${this.api}/tables/${table}/attachments`); }
+  joindre(table: string, fichier: File, description: string): Observable<Attachment> {
+    const fd = new FormData();
+    fd.append('file', fichier);
+    if (description.trim()) fd.append('description', description.trim());
+    return this.http.post<Attachment>(`${this.api}/tables/${table}/attachments`, fd);
+  }
+  retirerPieceJointe(table: string, id: number): Observable<void> {
+    return this.http.delete<void>(`${this.api}/tables/${table}/attachments/${id}`);
+  }
+  urlPieceJointe(table: string, id: number): string { return `${this.api}/tables/${table}/attachments/${id}`; }
 
   rechercher(q: string): Observable<SearchResults> { return this.http.get<SearchResults>(`${this.api}/search`, { params: params({ q }) }); }
 }

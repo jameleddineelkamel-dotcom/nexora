@@ -52,6 +52,11 @@ public class AuditContext {
         jdbc.sql("select set_config('nexora.history', :v, true)").param("v", actif ? "on" : "off").query((rs, i) -> 1).single();
     }
 
+    /** Suspend la synchronisation ligne à ligne des tables physiques referentiel.ref_xxx (chargements massifs). */
+    public void synchronisation(boolean actif) {
+        jdbc.sql("select set_config('nexora.sync', :v, true)").param("v", actif ? "on" : "off").query((rs, i) -> 1).single();
+    }
+
     public String utilisateur() {
         String u = entete(ENTETE_UTILISATEUR);
         return u == null || u.isBlank() ? (requete() == null ? "systeme" : "anonyme") : u.strip();

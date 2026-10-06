@@ -9,7 +9,9 @@ recommandations **UN/CEFACT** et le **modèle de référence de la chaîne logis
 | Élément | Contenu |
 |---|---|
 | Catalogue | **119 tables `REF_*`** classées en 9 catégories : standards internationaux, normes régionales (CEMAC), tables nationales, domaines d'activité (dédouanement, transport, contrôle technique, cacao-café, véhicules) |
-| Métadonnées | Fiche **ISO 19115** de chaque table (identification, cycle de vie, organismes associés) issue du rapport, extensible par des métadonnées libres ; indicateur de complétude |
+| Métadonnées | Fiche **ISO 19115** de chaque table (identification, cycle de vie, organismes associés) issue du rapport, extensible par des métadonnées libres, avec **pièces jointes** (normes, recommandations, notes) ; indicateur de complétude |
+| Tables physiques | Chaque table existe en base comme **vraie table PostgreSQL** `referentiel.ref_xxx` (ex. `referentiel.ref_country`) : colonnes typées, clé primaire sur le code, tenue à jour en temps réel |
+| Interface | Angular, **multilingue français / anglais** (textes de l'interface et libellés des données), mode clair / sombre |
 | Structures | Colonnes typées issues des attributs du rapport : balise XML, cardinalité, type..longueur, référence **UNTDED**, clés étrangères |
 | Données | **119 871 codes** : pays ISO 3166, devises ISO 4217, Incoterms® 2020, modes et moyens de transport (Rec. 19, 28), **UN/LOCODE (116 086 lieux)**, emballages (Rec. 21), unités de mesure (Rec. 20), PAYTERMS (Rec. 17), frais de transport FCC (Rec. 23), statuts (Rec. 24), documents (UNCL 1001), NACAM |
 | Buy-Ship-Pay | Chaque table est rattachée aux phases Buy / Ship / Pay du modèle UN/CEFACT |
@@ -20,9 +22,9 @@ recommandations **UN/CEFACT** et le **modèle de référence de la chaîne logis
 |---|---|
 | REF-01/02 Listes internationales, régionales, nationales | Catégories et attribut **Source** (Internationale, Régionale, Nationale) ; contenu **Simple** ou **Complexe** (avec attributs) |
 | REF-03 Éditer, consulter, importer, exporter (UI et backend) | Interface Angular + API REST ; export CSV / JSON / Excel ré-importable |
-| REF-04 Gestion des métadonnées | Fiche ISO 19115 éditable + création de nouvelles métadonnées |
+| REF-04 Gestion des métadonnées | Fiche ISO 19115 éditable + création de nouvelles métadonnées + pièces jointes |
 | REF-05 Chargement des listes de codes | Import CSV / JSON / Excel, **simulation** préalable, fusion ou remplacement, journal des chargements |
-| REF-06 Adaptateurs DataWarehouse / Big Data | **Vue SQL typée** `referentiel.ref_xxx` générée pour chaque table |
+| REF-06 Adaptateurs DataWarehouse / Big Data | **Table physique typée** `referentiel.ref_xxx` pour chaque table, synchronisée par trigger |
 | REF-07 Interopérabilité | Services `lookup` (code valide à une date, libellé FR/EN), recherche, définitions |
 | Pas de suppression | Un code est **invalidé** (statut + fin de validité) ; la base refuse toute suppression (trigger) |
 | Périodes de validité | `validFrom` / `validTo` par code, consultation « valide au » (voyage dans le temps) |
@@ -36,12 +38,20 @@ frontend/ (Angular 22)  ──►  backend/ (Spring Boot 4.1, Java 21)  ──�
                                /api/v1/...                               ref_category, ref_table, ref_column (catalogue)
                                                                          ref_entry (codes, attributs JSONB)
                                                                          ref_history (trigger), ref_import
-                                                                         schéma referentiel : vues ref_xxx générées
+                                                                         ref_attachment (pièces jointes)
+                                                                         schéma referentiel : tables physiques ref_xxx
+                                                                         schéma referentiel_src : vues de calcul internes
 ```
 
 Moteur générique : la structure de chaque table est décrite dans le catalogue (`ref_column`), les codes sont
-stockés dans `ref_entry` avec leurs attributs typés (JSONB) et exposés en SQL sous `referentiel.ref_xxx` avec des
-colonnes nommées d'après les balises XML. C'est ce qui permet d'ajouter une table à chaud.
+stockés dans `ref_entry` avec leurs attributs typés (JSONB). Chaque table est matérialisée en **table physique**
+`referentiel.ref_xxx` (colonnes nommées d'après les balises XML, clé primaire sur le code) : un trigger la met à jour
+à chaque création, modification ou invalidation de code, et elle est reconstruite quand sa structure change. C'est ce qui
+permet d'ajouter une table à chaud tout en offrant de vraies tables aux autres systèmes.
+
+```sql
+SELECT * FROM referentiel.ref_country WHERE ref_status = 'ACTIVE';
+```
 
 ## Installation
 
@@ -75,6 +85,7 @@ npm.cmd start                       # interface sur http://localhost:4201 (proxy
 | POST | `/api/v1/tables/{code}/import?mode=MERGE\|REPLACE&dryRun=` | Chargement de fichier |
 | GET | `/api/v1/tables/{code}/export?format=csv\|json\|xlsx` | Export |
 | POST | `/api/v1/tables/infer` | Proposition de structure à partir d'un fichier |
+| GET/POST/DELETE | `/api/v1/tables/{code}/attachments[/{id}]` | Pièces jointes des métadonnées |
 | GET | `/api/v1/history?table=&code=&operation=&author=&channel=&batch=` | Historique |
 | GET | `/api/v1/search?q=` | Recherche globale |
 | GET/POST | `/api/v1/catalogue/export` · `/catalogue/import` | Définitions en masse |

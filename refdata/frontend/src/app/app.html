@@ -1,48 +1,53 @@
 <div class="shell" [class.menu-ouvert]="menuOuvert()">
   <aside class="sidebar">
     <a routerLink="/" class="marque" (click)="menuOuvert.set(false)">
-      <img src="nexora-logo.webp" alt="NEXORA — AI-powered trade digital platform" />
+      <img src="nexora-logo.webp" alt="NEXORA — AI-powered Trade Digital Platform" />
     </a>
     <div class="module">
       <span class="pastille"><nx-icon name="database" [size]="15" /></span>
-      <div><b>Référentiel Commun</b><span>Microservice refdata</span></div>
+      <div><b>{{ 'Référentiel Commun' | t }}</b><span>{{ 'Microservice refdata' | t }}</span></div>
     </div>
     <nav>
       @for (n of nav; track n.lien) {
         <a [routerLink]="n.lien" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: n.exact }" (click)="menuOuvert.set(false)">
-          <nx-icon [name]="n.icone" /> {{ n.libelle }}
+          <nx-icon [name]="n.icone" /> {{ n.libelle | t }}
         </a>
       }
     </nav>
-    <a routerLink="/nouvelle-table" class="btn primary nouvelle" (click)="menuOuvert.set(false)"><nx-icon name="plus" /> Nouvelle table</a>
+    <a routerLink="/nouvelle-table" class="btn primary nouvelle" (click)="menuOuvert.set(false)"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a>
     <div class="plateforme">
-      <span class="label">Plateforme NEXORA</span>
-      <span class="ms on"><i></i> Référentiel Commun</span>
-      <span class="ms"><i></i> Party Management</span>
-      <span class="ms"><i></i> Procédures</span>
+      <span class="label">{{ 'Plateforme NEXORA' | t }}</span>
+      <span class="ms on"><i></i> {{ 'Référentiel Commun' | t }}</span>
+      <span class="ms"><i></i> Registration</span>
+      <span class="ms"><i></i> {{ 'Procédures' | t }}</span>
       <span class="ms"><i></i> e-Services</span>
-      <span class="ms"><i></i> Services DATA</span>
+      <span class="ms"><i></i> {{ 'Services DATA' | t }}</span>
     </div>
   </aside>
   <div class="voile" (click)="menuOuvert.set(false)"></div>
 
   <div class="principal">
     <header class="topbar">
-      <button class="btn icon ghost burger" (click)="menuOuvert.set(!menuOuvert())" aria-label="Menu"><nx-icon name="grid" /></button>
+      <button class="btn icon ghost burger" (click)="menuOuvert.set(!menuOuvert())" [attr.aria-label]="'Menu' | t"><nx-icon name="grid" /></button>
       <button class="recherche" (click)="ouvrirPalette()">
-        <nx-icon name="search" /> <span>Rechercher une table, un code, un libellé…</span> <kbd>Ctrl K</kbd>
+        <nx-icon name="search" /> <span>{{ 'Rechercher une table, un code, un libellé…' | t }}</span> <kbd>Ctrl K</kbd>
       </button>
       <div class="grow"></div>
-      <button class="btn icon ghost" (click)="session.basculerTheme()" [attr.aria-label]="session.theme() === 'light' ? 'Mode sombre' : 'Mode clair'">
+      <div class="langues" role="group" [attr.aria-label]="'Langue' | t">
+        @for (l of langues; track l.code) {
+          <button class="btn sm" [class.on]="i18n.langue() === l.code" (click)="i18n.langue.set(l.code)" [title]="l.libelle">{{ l.code.toUpperCase() }}</button>
+        }
+      </div>
+      <button class="btn icon ghost" (click)="session.basculerTheme()" [attr.aria-label]="(session.theme() === 'light' ? 'Mode sombre' : 'Mode clair') | t">
         <nx-icon [name]="session.theme() === 'light' ? 'moon' : 'sun'" />
       </button>
       @if (editionUtilisateur()) {
         <form class="utilisateur-form" (submit)="$event.preventDefault(); enregistrerUtilisateur(nom.value)">
-          <input #nom class="input" placeholder="Votre nom (historique)" [value]="session.utilisateur()" aria-label="Votre nom" />
+          <input #nom class="input" [placeholder]="'Votre nom (historique)' | t" [value]="session.utilisateur()" [attr.aria-label]="'Votre nom' | t" />
           <button class="btn sm" type="submit"><nx-icon name="check" /></button>
         </form>
       } @else {
-        <button class="utilisateur" (click)="editionUtilisateur.set(true)" title="Auteur enregistré dans l'historique">
+        <button class="utilisateur" (click)="editionUtilisateur.set(true)" [title]="'Auteur enregistré dans l\'historique' | t">
           <span class="avatar">{{ initiales() }}</span><span class="nom">{{ session.utilisateur() }}</span>
         </button>
       }
@@ -53,12 +58,12 @@
 
 @if (palette()) {
   <div class="overlay" (click)="fermerPalette()"></div>
-  <div class="modal palette" role="dialog" aria-label="Recherche globale">
+  <div class="modal palette" role="dialog" [attr.aria-label]="'Recherche globale' | t">
     <div class="palette-champ">
       <nx-icon name="search" [size]="20" />
-      <input #champ [value]="requete()" (input)="saisir($any($event.target).value)" placeholder="Pays, devise, port, Incoterm, code UN/LOCODE…" />
+      <input #champ [value]="requete()" (input)="saisir($any($event.target).value)" [placeholder]="'Pays, devise, port, Incoterm, code UN/LOCODE…' | t" />
       @if (recherche()) { <span class="muted small">…</span> }
-      <kbd>Échap</kbd>
+      <kbd>{{ 'Échap' | t }}</kbd>
     </div>
     <div class="palette-resultats">
       @for (r of liste(); track r.type + r.lien.join('/') + r.code; let i = $index) {
@@ -70,9 +75,9 @@
       } @empty {
         <div class="empty small">
           @if (requete().trim().length < 2) {
-            Recherche dans les 119 tables et 120 000 codes du référentiel, sans tenir compte des accents.<br />
-            Exemples : <i>douala</i>, <i>cote ivoire</i>, <i>FCA</i>, <i>conteneur</i>, <i>PAYTERMS</i>.
-          } @else if (!recherche()) { Aucun résultat pour « {{ requete() }} ». }
+            {{ 'Recherche dans toutes les tables et tous les codes du référentiel, sans tenir compte des accents.' | t }}<br />
+            {{ 'Exemples' | t }} : <i>douala</i>, <i>cote ivoire</i>, <i>FCA</i>, <i>conteneur</i>, <i>PAYTERMS</i>.
+          } @else if (!recherche()) { {{ 'Aucun résultat pour « {0} ».' | t: requete() }} }
         </div>
       }
     </div>

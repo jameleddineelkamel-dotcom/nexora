@@ -1,8 +1,8 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService, erreurs } from '../core/api.service';
 import { Category, Phase, SOURCES, TableSummary } from '../core/models';
+import { I18N, I18n } from '../core/i18n';
 import { Icon } from '../shared/icon';
 import { Bsp, Ring } from '../shared/widgets';
 
@@ -10,27 +10,27 @@ const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
 @Component({
   selector: 'nx-catalogue',
-  imports: [RouterLink, DecimalPipe, Icon, Bsp, Ring],
+  imports: [RouterLink, Icon, Bsp, Ring, ...I18N],
   template: `
     <div class="between">
       <div>
-        <h1>Catalogue des tables de référence</h1>
-        <p class="muted">{{ filtrees().length }} table(s) · rapport « Référentiel Commun » (ISO 19115), recommandations UN/CEFACT, normes CEMAC et nationales.</p>
+        <h1>{{ 'Catalogue des tables de référence' | t }}</h1>
+        <p class="muted">{{ '{0} table(s) · rapport « Référentiel Commun » (ISO 19115), recommandations UN/CEFACT, normes CEMAC et nationales.' | t: filtrees().length }}</p>
       </div>
-      <a routerLink="/nouvelle-table" class="btn primary"><nx-icon name="plus" /> Nouvelle table</a>
+      <a routerLink="/nouvelle-table" class="btn primary"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a>
     </div>
 
     <div class="mise-en-page">
       <aside class="card pad arbre">
-        <button class="noeud" [class.on]="!category()" (click)="choisir(null)"><nx-icon name="layers" /> <span class="grow">Toutes les catégories</span>
+        <button class="noeud" [class.on]="!category()" (click)="choisir(null)"><nx-icon name="layers" /> <span class="grow">{{ 'Toutes les catégories' | t }}</span>
           <span class="muted small">{{ tables().length }}</span></button>
         @for (c of racines(); track c.code) {
           <button class="noeud" [class.on]="category() === c.code" (click)="choisir(c.code)" [style.--c]="c.color">
-            <span class="puce"><nx-icon [name]="c.icon ?? 'layers'" [size]="14" /></span> <span class="grow">{{ c.labelFr }}</span>
+            <span class="puce"><nx-icon [name]="c.icon ?? 'layers'" [size]="14" /></span> <span class="grow">{{ c.labelFr | lib: c.labelEn }}</span>
             <span class="muted small">{{ compte(c.code) }}</span></button>
           @for (s of enfants(c.code); track s.code) {
             <button class="noeud sous" [class.on]="category() === s.code" (click)="choisir(s.code)" [style.--c]="s.color">
-              <span class="puce"><nx-icon [name]="s.icon ?? 'layers'" [size]="13" /></span> <span class="grow">{{ s.labelFr }}</span>
+              <span class="puce"><nx-icon [name]="s.icon ?? 'layers'" [size]="13" /></span> <span class="grow">{{ s.labelFr | lib: s.labelEn }}</span>
               <span class="muted small">{{ s.tableCount }}</span></button>
           }
         }
@@ -38,24 +38,24 @@ const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
       <section class="stack">
         <div class="card pad filtres">
-          <div class="field grow"><input class="input" placeholder="Filtrer par nom, code, standard (ex. Rec. 20, ISO 4217, CEMAC)…"
-            [value]="texte()" (input)="texte.set($any($event.target).value)" aria-label="Filtrer" /></div>
-          <select class="input" [value]="source()" (change)="source.set($any($event.target).value)" aria-label="Source">
-            <option value="">Toutes sources</option>
-            @for (s of sources; track s.code) { <option [value]="s.code">{{ s.label }}</option> }
+          <div class="field grow"><input class="input" [placeholder]="'Filtrer par nom, code, standard (ex. Rec. 20, ISO 4217, CEMAC)…' | t"
+            [value]="texte()" (input)="texte.set($any($event.target).value)" [attr.aria-label]="'Filtrer' | t" /></div>
+          <select class="input" (change)="source.set($any($event.target).value)" [attr.aria-label]="'Source' | t">
+            <option value="">{{ 'Toutes sources' | t }}</option>
+            @for (s of sources; track s.code) { <option [value]="s.code" [selected]="s.code === source()">{{ s.label | t }}</option> }
           </select>
-          <div class="phases" role="group" aria-label="Phase Buy-Ship-Pay">
+          <div class="phases" role="group" aria-label="Buy-Ship-Pay">
             @for (p of ['BUY', 'SHIP', 'PAY']; track p) {
               <button class="btn sm" [class.on]="phase() === p" [attr.data-p]="p" (click)="phase.set(phase() === p ? '' : $any(p))">{{ p }}</button>
             }
           </div>
-          <select class="input" [value]="contenu()" (change)="contenu.set($any($event.target).value)" aria-label="Contenu">
-            <option value="">Tout contenu</option><option value="DATA">Alimentées</option><option value="EMPTY">À alimenter</option>
-            <option value="SIMPLE">Simples</option><option value="COMPLEXE">Complexes</option>
+          <select class="input" (change)="contenu.set($any($event.target).value)" [attr.aria-label]="'Contenu' | t">
+            <option value="">{{ 'Tout contenu' | t }}</option><option value="DATA">{{ 'Alimentées' | t }}</option><option value="EMPTY">{{ 'À alimenter' | t }}</option>
+            <option value="SIMPLE">{{ 'Simples' | t }}</option><option value="COMPLEXE">{{ 'Complexes' | t }}</option>
           </select>
           <div class="vues">
-            <button class="btn icon sm" [class.on]="vue() === 'cartes'" (click)="vue.set('cartes')" aria-label="Cartes"><nx-icon name="grid" /></button>
-            <button class="btn icon sm" [class.on]="vue() === 'liste'" (click)="vue.set('liste')" aria-label="Liste"><nx-icon name="table" /></button>
+            <button class="btn icon sm" [class.on]="vue() === 'cartes'" (click)="vue.set('cartes')" [attr.aria-label]="'Cartes' | t"><nx-icon name="grid" /></button>
+            <button class="btn icon sm" [class.on]="vue() === 'liste'" (click)="vue.set('liste')" [attr.aria-label]="'Liste' | t"><nx-icon name="table" /></button>
           </div>
         </div>
 
@@ -67,29 +67,29 @@ const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
             @for (t of filtrees(); track t.code) {
               <a class="card pad carte" [routerLink]="['/tables', t.code]" [style.--c]="couleur(t.categoryCode)">
                 <div class="between"><span class="code-tag">{{ t.code }}</span><nx-ring [value]="t.completeness" [size]="34" /></div>
-                <h3>{{ t.nameFr }}</h3>
+                <h3>{{ t.nameFr | lib: t.nameEn }}</h3>
                 <p class="muted small std">{{ premiereLigne(t.standards) || t.description || '—' }}</p>
                 <div class="between pied">
                   <span class="row" style="gap: 6px">
-                    @if (t.entryCount) { <span class="chip ok">{{ t.entryCount | number: '1.0-0' : 'fr-FR' }} codes</span> }
-                    @else { <span class="chip warn">À alimenter</span> }
-                    <span class="chip">{{ t.contentType === 'COMPLEXE' ? 'Complexe' : 'Simple' }}</span>
+                    @if (t.entryCount) { <span class="chip ok">{{ '{0} codes' | t: (t.entryCount | num) }}</span> }
+                    @else { <span class="chip warn">{{ 'À alimenter' | t }}</span> }
+                    <span class="chip">{{ (t.contentType === 'COMPLEXE' ? 'Complexe' : 'Simple') | t }}</span>
                   </span>
                   <nx-bsp [phases]="t.bspPhases" />
                 </div>
               </a>
-            } @empty { <div class="card empty">Aucune table ne correspond à ces filtres.</div> }
+            } @empty { <div class="card empty">{{ 'Aucune table ne correspond à ces filtres.' | t }}</div> }
           </div>
         } @else {
           <div class="card scroll-x">
             <table class="datagrid">
-              <thead><tr><th>N°</th><th>Code</th><th>Nom</th><th>Standards</th><th>Source</th><th>BSP</th><th>Codes</th><th>ISO 19115</th></tr></thead>
+              <thead><tr><th>N°</th><th>{{ 'Code' | t }}</th><th>{{ 'Nom' | t }}</th><th>{{ 'Standards' | t }}</th><th>{{ 'Source' | t }}</th><th>BSP</th><th>{{ 'Codes' | t }}</th><th>ISO 19115</th></tr></thead>
               <tbody>
                 @for (t of filtrees(); track t.code) {
                   <tr (click)="ouvrir(t.code)">
-                    <td class="muted">{{ t.number }}</td><td><span class="code-tag">{{ t.code }}</span></td><td><b>{{ t.nameFr }}</b></td>
-                    <td class="muted small">{{ premiereLigne(t.standards) }}</td><td class="small">{{ t.source }}</td>
-                    <td><nx-bsp [phases]="t.bspPhases" /></td><td class="mono">{{ t.entryCount | number: '1.0-0' : 'fr-FR' }}</td>
+                    <td class="muted">{{ t.number }}</td><td><span class="code-tag">{{ t.code }}</span></td><td><b>{{ t.nameFr | lib: t.nameEn }}</b></td>
+                    <td class="muted small">{{ premiereLigne(t.standards) }}</td><td class="small">{{ libelleSource(t.source) | t }}</td>
+                    <td><nx-bsp [phases]="t.bspPhases" /></td><td class="mono">{{ t.entryCount | num }}</td>
                     <td><nx-ring [value]="t.completeness" [size]="30" /></td>
                   </tr>
                 }
@@ -129,6 +129,7 @@ const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 export class CataloguePage {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18n);
   readonly category = input<string | null>(null);
 
   protected readonly categories = signal<Category[]>([]);
@@ -151,7 +152,9 @@ export class CataloguePage {
       (!membres || membres.has(t.categoryCode)) && (!this.source() || t.source === this.source())
       && (!this.phase() || t.bspPhases.includes(this.phase() as Phase))
       && (!this.contenu() || (this.contenu() === 'DATA' ? t.entryCount > 0 : this.contenu() === 'EMPTY' ? t.entryCount === 0 : t.contentType === this.contenu()))
-      && (!q || plier(`${t.code} ${t.nameFr} ${t.nameEn ?? ''} ${t.standards ?? ''} ${t.description ?? ''} ${t.number ?? ''}`).includes(q)));
+      && (!q || plier(`${t.code} ${t.nameFr} ${t.nameEn ?? ''} ${t.standards ?? ''} ${t.description ?? ''} ${t.number ?? ''}`).includes(q)))
+      .sort((a, b) => (a.number ?? '').localeCompare(b.number ?? '', undefined, { numeric: true })
+        || this.i18n.libelle(a.nameFr, a.nameEn).localeCompare(this.i18n.libelle(b.nameFr, b.nameEn)));
   });
 
   constructor() {
@@ -172,4 +175,5 @@ export class CataloguePage {
   protected choisir(code: string | null): void { this.router.navigate(code ? ['/catalogue', code] : ['/catalogue']); }
   protected ouvrir(code: string): void { this.router.navigate(['/tables', code]); }
   protected premiereLigne(s: string | null): string { return (s ?? '').split('\n')[0]; }
+  protected libelleSource(s: string): string { return SOURCES.find(x => x.code === s)?.label ?? s; }
 }

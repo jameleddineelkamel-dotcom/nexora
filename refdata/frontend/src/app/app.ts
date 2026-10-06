@@ -5,12 +5,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService, SessionService } from './core/api.service';
 import { SearchResults } from './core/models';
 import { Icon } from './shared/icon';
+import { I18n, LANGUES, TPipe } from './core/i18n';
 
 interface Resultat { type: 'table' | 'code'; titre: string; sous: string; code: string; lien: string[]; query?: Record<string, string>; }
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, TPipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -18,6 +19,8 @@ export class App {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   protected readonly session = inject(SessionService);
+  protected readonly i18n = inject(I18n);
+  protected readonly langues = LANGUES;
 
   protected readonly nav = [
     { lien: '/', icone: 'home', libelle: 'Tableau de bord', exact: true },
@@ -40,7 +43,7 @@ export class App {
     const r = this.resultats();
     if (!r) return [];
     return [
-      ...r.tables.map(t => ({ type: 'table' as const, titre: t.nameFr, sous: `${t.entryCount.toLocaleString('fr-FR')} codes${t.standards ? ' · ' + t.standards.split('\n')[0] : ''}`, code: t.code, lien: ['/tables', t.code] })),
+      ...r.tables.map(t => ({ type: 'table' as const, titre: t.nameFr, sous: this.i18n.t('{0} codes', this.i18n.nombre(t.entryCount)) + (t.standards ? ' · ' + t.standards.split('\n')[0] : ''), code: t.code, lien: ['/tables', t.code] })),
       ...r.entries.map(e => ({ type: 'code' as const, titre: e.labelFr ?? e.code, sous: e.tableName, code: e.code, lien: ['/tables', e.tableCode], query: { q: e.code } })),
     ];
   });

@@ -1,35 +1,35 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { ApiService, erreurs } from '../../core/api.service';
 import { ColumnDef, TableDef } from '../../core/models';
+import { I18N } from '../../core/i18n';
 import { Icon } from '../../shared/icon';
 import { ColumnEditor } from '../../shared/column-editor';
 
 @Component({
   selector: 'nx-structure-tab',
-  imports: [Icon, ColumnEditor],
+  imports: [Icon, ColumnEditor, ...I18N],
   template: `
     <div class="card pad stack">
       <div class="between">
         <div>
-          <h2>Structure de la table</h2>
-          <p class="muted small">Colonnes typées. Le <b>code</b> est la clé ; les <b>libellés</b> FR/EN servent aux listes ; les <b>attributs</b>
-            font de la liste une liste « complexe ». Chaque modification est historisée et la vue SQL <code>{{ table().sqlView }}</code> est régénérée.</p>
+          <h2>{{ 'Structure de la table' | t }}</h2>
+          <p class="muted small">{{ 'Le code est la clé ; les libellés FR/EN servent aux listes ; les attributs font de la liste une liste « complexe ». Chaque modification est historisée et la table physique {0} est reconstruite.' | t: table().sqlView }}</p>
         </div>
         <div class="legende small">
-          <span><i style="background: var(--navy)"></i> Code</span><span><i style="background: var(--cyan)"></i> Libellés</span><span><i style="background: var(--green)"></i> Attributs</span>
+          <span><i style="background: var(--navy)"></i> {{ 'Code' | t }}</span><span><i style="background: var(--cyan)"></i> {{ 'Libellés' | t }}</span><span><i style="background: var(--green)"></i> {{ 'Attributs' | t }}</span>
         </div>
       </div>
       <nx-column-editor [(colonnes)]="colonnes" [tableCode]="table().code" />
-      <div class="field"><label for="m-structure">Motif de la modification</label>
-        <input id="m-structure" class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" placeholder="Ex. ajout du code IATA (Rec. 16 Rév. 4)" /></div>
+      <div class="field"><label for="m-structure">{{ 'Motif de la modification' | t }}</label>
+        <input id="m-structure" class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" [placeholder]="'Ex. ajout du code IATA (Rec. 16 Rév. 4)' | t" /></div>
       @if (messages().length) {
         <div class="alert err"><nx-icon name="alert" /><div><ul>@for (m of messages(); track m) { <li>{{ m }}</li> }</ul>
-          @if (aConfirmer()) { <button class="btn sm danger" (click)="enregistrer(true)">Confirmer le retrait et effacer ces valeurs</button> }</div></div>
+          @if (aConfirmer()) { <button class="btn sm danger" (click)="enregistrer(true)">{{ 'Confirmer le retrait et effacer ces valeurs' | t }}</button> }</div></div>
       }
-      @if (ok()) { <div class="alert ok"><nx-icon name="check" /> Structure enregistrée, vue SQL régénérée.</div> }
+      @if (ok()) { <div class="alert ok"><nx-icon name="check" /> {{ 'Structure enregistrée, table physique reconstruite.' | t }}</div> }
       <div class="row">
-        <button class="btn primary" (click)="enregistrer(false)" [disabled]="occupe()"><nx-icon name="check" /> Enregistrer la structure</button>
-        <button class="btn ghost" (click)="annuler()">Annuler les changements</button>
+        <button class="btn primary" (click)="enregistrer(false)" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer la structure' | t }}</button>
+        <button class="btn ghost" (click)="annuler()">{{ 'Annuler les changements' | t }}</button>
       </div>
     </div>
   `,

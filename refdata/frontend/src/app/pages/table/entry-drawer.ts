@@ -2,6 +2,7 @@ import { Component, computed, inject, input, output, signal } from '@angular/cor
 import { DatePipe } from '@angular/common';
 import { ApiService, erreurs } from '../../core/api.service';
 import { ColumnDef, Entry, TableDef } from '../../core/models';
+import { I18N, I18n } from '../../core/i18n';
 import { Icon } from '../../shared/icon';
 import { RefPicker } from '../../shared/ref-picker';
 import { HistoryList } from '../../shared/history-list';
@@ -9,28 +10,28 @@ import { HistoryList } from '../../shared/history-list';
 /** Formulaire d'un code, généré à partir de la structure (colonnes typées) de la table. */
 @Component({
   selector: 'nx-entry-drawer',
-  imports: [DatePipe, Icon, RefPicker, HistoryList],
+  imports: [DatePipe, Icon, RefPicker, HistoryList, ...I18N],
   template: `
     <div class="overlay" (click)="fermer.emit()"></div>
-    <aside class="drawer" role="dialog" [attr.aria-label]="nouveau() ? 'Nouveau code' : 'Code ' + entree()?.code">
+    <aside class="drawer" role="dialog" [attr.aria-label]="nouveau() ? ('Nouveau code' | t) : entree()?.code">
       <header class="between">
         <div>
-          <h2>{{ nouveau() ? 'Nouveau code' : entree()!.code }}</h2>
-          <span class="muted small">{{ table().nameFr }}</span>
+          <h2>{{ nouveau() ? ('Nouveau code' | t) : entree()!.code }}</h2>
+          <span class="muted small">{{ table().nameFr | lib: table().nameEn }}</span>
         </div>
         <div class="row">
           @if (!nouveau()) {
             <span class="chip" [class.ok]="entree()!.status === 'ACTIVE'" [class.warn]="entree()!.status === 'INVALID'">
-              {{ entree()!.status === 'ACTIVE' ? 'Actif' : 'Invalidé' }}</span>
+              {{ (entree()!.status === 'ACTIVE' ? 'Actif' : 'Invalidé') | t }}</span>
           }
-          <button class="btn icon ghost" (click)="fermer.emit()" aria-label="Fermer"><nx-icon name="x" /></button>
+          <button class="btn icon ghost" (click)="fermer.emit()" [attr.aria-label]="'Fermer' | t"><nx-icon name="x" /></button>
         </div>
       </header>
       <div class="body">
         @if (!nouveau()) {
           <div class="tabs mini">
-            <button class="tab" [class.on]="vue() === 'form'" (click)="vue.set('form')">Détail</button>
-            <button class="tab" [class.on]="vue() === 'hist'" (click)="vue.set('hist')"><nx-icon name="history" [size]="15" /> Historique du code</button>
+            <button class="tab" [class.on]="vue() === 'form'" (click)="vue.set('form')">{{ 'Détail' | t }}</button>
+            <button class="tab" [class.on]="vue() === 'hist'" (click)="vue.set('hist')"><nx-icon name="history" [size]="15" /> {{ 'Historique du code' | t }}</button>
           </div>
         }
         @if (vue() === 'hist') {
@@ -38,37 +39,38 @@ import { HistoryList } from '../../shared/history-list';
         } @else {
           <form class="stack" (submit)="$event.preventDefault(); enregistrer()">
             <div class="field">
-              <label for="f-code">{{ colCode()?.labelFr ?? 'Code' }} *</label>
+              <label for="f-code">{{ libelle(colCode(), 'Code') }} *</label>
               <input id="f-code" class="input mono" [value]="code()" (input)="code.set($any($event.target).value)" [readonly]="!nouveau()"
                 [attr.maxlength]="colCode()?.maxLength" />
-              @if (colCode()?.xmlTag) { <span class="hint">Balise {{ balise(colCode()!.xmlTag) }} @if (colCode()!.untded) { · UNTDED {{ colCode()!.untded }} }</span> }
+              @if (colCode()?.xmlTag) { <span class="hint">{{ 'Balise' | t }} {{ balise(colCode()!.xmlTag) }} @if (colCode()!.untded) { · UNTDED {{ colCode()!.untded }} }</span> }
             </div>
             @if (colFr()) {
-              <div class="field"><label for="f-fr">{{ colFr()!.labelFr }} @if (colFr()!.required) { * }</label>
+              <div class="field"><label for="f-fr">{{ libelle(colFr()) }} @if (colFr()!.required) { * }</label>
                 <input id="f-fr" class="input" [value]="fr()" (input)="fr.set($any($event.target).value)" [attr.maxlength]="colFr()!.maxLength" /></div>
             }
             @if (colEn()) {
-              <div class="field"><label for="f-en">{{ colEn()!.labelFr }}</label>
+              <div class="field"><label for="f-en">{{ libelle(colEn()) }}</label>
                 <input id="f-en" class="input" [value]="en()" (input)="en.set($any($event.target).value)" [attr.maxlength]="colEn()!.maxLength" /></div>
             }
             @if (table().parentTableCode) {
-              <div class="field"><label>Code parent ({{ table().parentTableCode }})</label>
-                <nx-ref-picker [table]="table().parentTableCode!" [(value)]="parent" label="Code parent" /></div>
+              <div class="field"><label>{{ 'Code parent ({0})' | t: table().parentTableCode }}</label>
+                <nx-ref-picker [table]="table().parentTableCode!" [(value)]="parent" [label]="'Code parent' | t" /></div>
             }
             @if (attributs().length) {
-              <h3 class="sep">Attributs</h3>
+              <h3 class="sep">{{ 'Attributs' | t }}</h3>
               <div class="form-grid">
                 @for (c of attributs(); track c.key) {
                   <div class="field" [class.full]="c.dataType === 'TEXT' || c.dataType === 'CODE_REF'">
-                    <label [attr.for]="'a-' + c.key">{{ c.labelFr }} @if (c.required) { * } @if (c.unit) { <span class="muted">({{ c.unit }})</span> }</label>
+                    <label [attr.for]="'a-' + c.key">{{ libelle(c) }} @if (c.required) { * } @if (c.unit) { <span class="muted">({{ c.unit }})</span> }</label>
                     @switch (c.dataType) {
                       @case ('TEXT') { <textarea [id]="'a-' + c.key" class="input" [value]="val(c)" (input)="poser(c, $any($event.target).value)"></textarea> }
                       @case ('DATE') { <input [id]="'a-' + c.key" class="input" type="date" [value]="val(c)" (input)="poser(c, $any($event.target).value)" /> }
                       @case ('BOOLEAN') {
-                        <select [id]="'a-' + c.key" class="input" [value]="val(c)" (change)="poser(c, $any($event.target).value)">
-                          <option value="">—</option><option value="true">Oui</option><option value="false">Non</option></select>
+                        <select [id]="'a-' + c.key" class="input" (change)="poser(c, $any($event.target).value)">
+                          <option value="">—</option><option value="true" [selected]="val(c) === 'true'">{{ 'Oui' | t }}</option>
+                          <option value="false" [selected]="val(c) === 'false'">{{ 'Non' | t }}</option></select>
                       }
-                      @case ('CODE_REF') { <nx-ref-picker [table]="c.refTableCode!" [value]="val(c) || null" (valueChange)="poser(c, $event ?? '')" [label]="c.labelFr" /> }
+                      @case ('CODE_REF') { <nx-ref-picker [table]="c.refTableCode!" [value]="val(c) || null" (valueChange)="poser(c, $event ?? '')" [label]="libelle(c)" /> }
                       @default {
                         <input [id]="'a-' + c.key" class="input" [class.mono]="c.dataType !== 'STRING'"
                           [attr.inputmode]="c.dataType === 'INTEGER' || c.dataType === 'DECIMAL' ? 'decimal' : null"
@@ -80,16 +82,16 @@ import { HistoryList } from '../../shared/history-list';
                 }
               </div>
             }
-            <h3 class="sep">Validité</h3>
+            <h3 class="sep">{{ 'Validité' | t }}</h3>
             <div class="form-grid">
-              <div class="field"><label for="f-du">Début de validité</label><input id="f-du" class="input" type="date" [value]="du()" (input)="du.set($any($event.target).value)" /></div>
-              <div class="field"><label for="f-au">Fin de validité</label><input id="f-au" class="input" type="date" [value]="au()" (input)="au.set($any($event.target).value)" /></div>
+              <div class="field"><label for="f-du">{{ 'Début de validité' | t }}</label><input id="f-du" class="input" type="date" [value]="du()" (input)="du.set($any($event.target).value)" /></div>
+              <div class="field"><label for="f-au">{{ 'Fin de validité' | t }}</label><input id="f-au" class="input" type="date" [value]="au()" (input)="au.set($any($event.target).value)" /></div>
             </div>
-            <div class="field"><label for="f-motif">Motif de la modification (historique)</label>
-              <input id="f-motif" class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" placeholder="Ex. mise à jour ISO 3166 du 2026-06-01" /></div>
+            <div class="field"><label for="f-motif">{{ 'Motif de la modification (historique)' | t }}</label>
+              <input id="f-motif" class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" [placeholder]="'Ex. mise à jour ISO 3166 du 2026-06-01' | t" /></div>
             @if (messages().length) { <div class="alert err"><nx-icon name="alert" /><ul>@for (m of messages(); track m) { <li>{{ m }}</li> }</ul></div> }
             @if (!nouveau()) {
-              <p class="muted small">Version {{ entree()!.version }} · créé le {{ entree()!.createdAt | date: 'dd/MM/yyyy' }} · modifié le {{ entree()!.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+              <p class="muted small">{{ 'Version {0} · créé le {1} · modifié le {2}' | t: entree()!.version : (entree()!.createdAt | date: 'dd/MM/yyyy') : (entree()!.updatedAt | date: 'dd/MM/yyyy HH:mm') }}</p>
             }
             <button type="submit" hidden></button>
           </form>
@@ -99,18 +101,18 @@ import { HistoryList } from '../../shared/history-list';
         <footer>
           @if (!nouveau() && entree()!.status === 'ACTIVE') {
             @if (confirmation()) {
-              <input class="input date" type="date" [value]="dateInvalidation()" (input)="dateInvalidation.set($any($event.target).value)" aria-label="Date d'invalidation" />
-              <button class="btn danger" (click)="invalider()" [disabled]="occupe()"><nx-icon name="ban" /> Confirmer l'invalidation</button>
+              <input class="input date" type="date" [value]="dateInvalidation()" (input)="dateInvalidation.set($any($event.target).value)" [attr.aria-label]="'Date d\\'invalidation' | t" />
+              <button class="btn danger" (click)="invalider()" [disabled]="occupe()"><nx-icon name="ban" /> {{ 'Confirmer l\\'invalidation' | t }}</button>
             } @else {
-              <button class="btn danger" (click)="confirmation.set(true)"><nx-icon name="ban" /> Invalider</button>
+              <button class="btn danger" (click)="confirmation.set(true)"><nx-icon name="ban" /> {{ 'Invalider' | t }}</button>
             }
           }
           @if (!nouveau() && entree()!.status === 'INVALID') {
-            <button class="btn" (click)="reactiver()" [disabled]="occupe()"><nx-icon name="refresh" /> Réactiver</button>
+            <button class="btn" (click)="reactiver()" [disabled]="occupe()"><nx-icon name="refresh" /> {{ 'Réactiver' | t }}</button>
           }
           <span class="grow"></span>
-          <button class="btn" (click)="fermer.emit()">Annuler</button>
-          <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> Enregistrer</button>
+          <button class="btn" (click)="fermer.emit()">{{ 'Annuler' | t }}</button>
+          <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer' | t }}</button>
         </footer>
       }
     </aside>
@@ -119,11 +121,11 @@ import { HistoryList } from '../../shared/history-list';
     .sep { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
     .tabs.mini { margin: -6px 0 14px; }
     .date { width: 160px; }
-    footer .alert { flex-basis: 100%; }
   `],
 })
 export class EntryDrawer {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18n);
   readonly table = input.required<TableDef>();
   readonly entree = input<Entry | null>(null);
   readonly fermer = output<void>();
@@ -164,6 +166,7 @@ export class EntryDrawer {
   }
 
   protected balise(tag: string | null | undefined): string { return tag ? '<' + tag + '>' : ''; }
+  protected libelle(c: ColumnDef | undefined, defaut = ''): string { return c ? this.i18n.libelle(c.labelFr, c.labelEn) : this.i18n.t(defaut); }
   private col(role: string): ColumnDef | undefined { return this.table().columns.find(c => c.role === role); }
   protected val(c: ColumnDef): string { return this.valeurs()[c.key] ?? ''; }
   protected poser(c: ColumnDef, v: string): void { this.valeurs.set({ ...this.valeurs(), [c.key]: v }); }

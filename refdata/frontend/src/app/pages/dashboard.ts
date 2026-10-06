@@ -1,30 +1,30 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ApiService, erreurs } from '../core/api.service';
 import { Category, Dashboard, OPERATIONS, PHASES } from '../core/models';
+import { I18N } from '../core/i18n';
 import { Icon } from '../shared/icon';
 import { Ring, Spark } from '../shared/widgets';
 
 @Component({
   selector: 'nx-dashboard',
-  imports: [RouterLink, DatePipe, DecimalPipe, Icon, Ring, Spark],
+  imports: [RouterLink, DatePipe, Icon, Ring, Spark, ...I18N],
   template: `
     <section class="hero">
       <div>
-        <span class="eyebrow"><nx-icon name="sparkles" [size]="14" /> NEXORA · Référentiel Commun du commerce extérieur</span>
-        <h1>Des codes communs pour toute la chaîne logistique</h1>
-        <p>Listes de codes internationales (ISO, UN/CEFACT, OMD), régionales (CEMAC) et nationales, décrites selon l'ISO 19115,
-          historisées et exposées aux autres services de la plateforme.</p>
+        <span class="eyebrow"><nx-icon name="sparkles" [size]="14" /> {{ 'NEXORA · Référentiel Commun du commerce extérieur' | t }}</span>
+        <h1>{{ 'Des codes communs pour toute la chaîne logistique' | t }}</h1>
+        <p>{{ 'Listes de codes internationales (ISO, UN/CEFACT, OMD), régionales (CEMAC) et nationales, décrites selon l\\'ISO 19115, historisées et exposées aux autres services de la plateforme.' | t }}</p>
         <div class="row">
-          <a routerLink="/catalogue" class="btn primary"><nx-icon name="grid" /> Explorer le catalogue</a>
-          <a routerLink="/nouvelle-table" class="btn"><nx-icon name="plus" /> Créer une table</a>
+          <a routerLink="/catalogue" class="btn primary"><nx-icon name="grid" /> {{ 'Explorer le catalogue' | t }}</a>
+          <a routerLink="/nouvelle-table" class="btn"><nx-icon name="plus" /> {{ 'Créer une table' | t }}</a>
         </div>
       </div>
       <div class="flux" aria-hidden="true">
         @for (p of phases; track p.code) {
-          <div class="etape" [attr.data-p]="p.code"><b>{{ p.label }}</b><span>{{ d()?.bsp?.[p.code] ?? '–' }} tables</span></div>
+          <div class="etape" [attr.data-p]="p.code"><b>{{ p.label }}</b><span>{{ '{0} tables' | t: (d()?.bsp?.[p.code] ?? '–') }}</span></div>
           @if (!$last) { <nx-icon name="chevron" [size]="20" /> }
         }
       </div>
@@ -34,63 +34,63 @@ import { Ring, Spark } from '../shared/widgets';
 
     <div class="grid k4 kpis">
       <div class="card pad kpi"><span class="ic" style="--c: var(--blue)"><nx-icon name="table" /></span>
-        <div><b>{{ d()?.tables ?? '–' }}</b><span>tables de référence</span><small>{{ d()?.tablesWithData ?? 0 }} alimentées</small></div></div>
+        <div><b>{{ d()?.tables | num }}</b><span>{{ 'tables de référence' | t }}</span><small>{{ '{0} alimentées' | t: (d()?.tablesWithData ?? 0) }}</small></div></div>
       <div class="card pad kpi"><span class="ic" style="--c: var(--cyan)"><nx-icon name="tag" /></span>
-        <div><b>{{ (d()?.entries ?? 0) | number: '1.0-0' : 'fr-FR' }}</b><span>codes</span><small>{{ (d()?.invalidEntries ?? 0) | number: '1.0-0' : 'fr-FR' }} invalidés</small></div></div>
+        <div><b>{{ d()?.entries | num }}</b><span>{{ 'codes' | t }}</span><small>{{ '{0} invalidés' | t: (d()?.invalidEntries ?? 0) }}</small></div></div>
       <div class="card pad kpi"><span class="ic" style="--c: var(--green)"><nx-icon name="history" /></span>
-        <div><b>{{ d()?.changesLast7Days ?? '–' }}</b><span>modifications</span><small>sur 7 jours</small></div></div>
+        <div><b>{{ d()?.changesLast7Days | num }}</b><span>{{ 'modifications' | t }}</span><small>{{ 'sur 7 jours' | t }}</small></div></div>
       <div class="card pad kpi"><nx-ring [value]="d()?.averageCompleteness ?? 0" [size]="46" />
-        <div><b>{{ d()?.averageCompleteness ?? '–' }} %</b><span>complétude ISO 19115</span><small>moyenne des fiches</small></div></div>
+        <div><b>{{ d()?.averageCompleteness ?? '–' }} %</b><span>{{ 'complétude ISO 19115' | t }}</span><small>{{ 'moyenne des fiches' | t }}</small></div></div>
     </div>
 
     <div class="grid k2">
       <div class="card pad">
-        <div class="between card-title"><h2>Catégories</h2><a routerLink="/catalogue" class="small">Tout voir</a></div>
+        <div class="between card-title"><h2>{{ 'Catégories' | t }}</h2><a routerLink="/catalogue" class="small">{{ 'Tout voir' | t }}</a></div>
         <div class="cats">
           @for (c of racines(); track c.code) {
             <a class="cat" [routerLink]="['/catalogue', c.code]" [style.--c]="c.color">
               <span class="ic"><nx-icon [name]="c.icon ?? 'layers'" /></span>
-              <span class="grow"><b>{{ c.labelFr }}</b><span class="muted small">{{ total(c).tables }} tables · {{ total(c).entries | number: '1.0-0' : 'fr-FR' }} codes</span></span>
+              <span class="grow"><b>{{ c.labelFr | lib: c.labelEn }}</b><span class="muted small">{{ '{0} tables · {1} codes' | t: total(c).tables : (total(c).entries | num) }}</span></span>
               <nx-icon name="chevron" />
             </a>
           }
         </div>
       </div>
       <div class="card pad">
-        <div class="between card-title"><h2>Activité</h2><span class="muted small">30 derniers jours (hors chargement initial)</span></div>
+        <div class="between card-title"><h2>{{ 'Activité' | t }}</h2><span class="muted small">{{ '30 derniers jours (hors chargement initial)' | t }}</span></div>
         <nx-spark [values]="activite()" />
         <div class="recent">
           @for (h of d()?.recent ?? []; track h.id) {
             <div class="evt">
               <span class="chip" [class.ok]="h.operation === 'CREATION'" [class.warn]="h.operation === 'INVALIDATION'"
-                [class.accent]="h.operation === 'MODIFICATION'">{{ ops[h.operation] }}</span>
+                [class.accent]="h.operation === 'MODIFICATION'">{{ ops[h.operation] | t }}</span>
               <span class="grow small"><b>{{ h.entityCode }}</b><span class="muted"> · {{ h.tableCode }}</span></span>
               <span class="muted small">{{ h.author }} · {{ h.occurredAt | date: 'dd/MM HH:mm' }}</span>
             </div>
-          } @empty { <div class="muted small">Aucune modification récente.</div> }
+          } @empty { <div class="muted small">{{ 'Aucune modification récente.' | t }}</div> }
         </div>
-        <a routerLink="/historique" class="small">Historique complet</a>
+        <a routerLink="/historique" class="small">{{ 'Historique complet' | t }}</a>
       </div>
     </div>
 
     <div class="grid k2">
       <div class="card pad">
-        <div class="card-title"><h2>Tables les plus volumineuses</h2></div>
+        <div class="card-title"><h2>{{ 'Tables les plus volumineuses' | t }}</h2></div>
         @for (t of d()?.largestTables ?? []; track t.code) {
           <a class="barre" [routerLink]="['/tables', t.code]">
-            <span class="grow"><b>{{ t.nameFr }}</b> <span class="code-tag">{{ t.code }}</span></span>
-            <span class="mono">{{ t.entryCount | number: '1.0-0' : 'fr-FR' }}</span>
+            <span class="grow"><b>{{ t.nameFr | lib: t.nameEn }}</b> <span class="code-tag">{{ t.code }}</span></span>
+            <span class="mono">{{ t.entryCount | num }}</span>
             <i [style.width.%]="largeur(t.entryCount)"></i>
           </a>
         }
       </div>
       <div class="card pad">
-        <div class="card-title"><h2>Fiches de métadonnées à compléter</h2></div>
-        <p class="muted small" style="margin: -6px 0 10px">Indicateur de qualité : part des 26 rubriques ISO 19115 renseignées.</p>
+        <div class="card-title"><h2>{{ 'Fiches de métadonnées à compléter' | t }}</h2></div>
+        <p class="muted small" style="margin: -6px 0 10px">{{ 'Indicateur de qualité : part des 26 rubriques ISO 19115 renseignées.' | t }}</p>
         @for (t of d()?.toComplete ?? []; track t.code) {
           <a class="barre" [routerLink]="['/tables', t.code]" [queryParams]="{ onglet: 'metadonnees' }">
             <nx-ring [value]="t.completeness" [size]="32" />
-            <span class="grow"><b>{{ t.nameFr }}</b> <span class="code-tag">{{ t.code }}</span></span>
+            <span class="grow"><b>{{ t.nameFr | lib: t.nameEn }}</b> <span class="code-tag">{{ t.code }}</span></span>
             <nx-icon name="edit" />
           </a>
         }

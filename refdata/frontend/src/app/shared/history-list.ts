@@ -4,8 +4,9 @@ import { RouterLink } from '@angular/router';
 import { ApiService, erreurs } from '../core/api.service';
 import { HistoryEvent, OPERATIONS } from '../core/models';
 import { Icon } from './icon';
+import { I18N } from '../core/i18n';
 
-const TYPES: Record<string, string> = { CATEGORY: 'Catégorie', TABLE: 'Table', COLUMN: 'Colonne', ENTRY: 'Code' };
+const TYPES: Record<string, string> = { CATEGORY: 'Catégorie', TABLE: 'Table', COLUMN: 'Colonne', ENTRY: 'Code', ATTACHMENT: 'Pièce jointe' };
 const CHAMPS: Record<string, string> = {
   label_fr: 'Libellé FR', label_en: 'Libellé EN', parent_code: 'Parent', valid_from: 'Début de validité', valid_to: 'Fin de validité',
   status: 'Statut', name_fr: 'Nom', name_en: 'Nom EN', category_code: 'Catégorie', bsp_phases: 'Phases BSP', data_type: 'Type',
@@ -15,26 +16,26 @@ const CHAMPS: Record<string, string> = {
 /** Frise de l'historique : qui, quand, par quel canal, pourquoi, et le détail avant / après. */
 @Component({
   selector: 'nx-history-list',
-  imports: [DatePipe, RouterLink, Icon],
+  imports: [DatePipe, RouterLink, Icon, ...I18N],
   template: `
     @if (filtres()) {
       <div class="card pad filtres">
-        <input class="input" placeholder="Table (REF_…)" [value]="fTable()" (change)="fTable.set($any($event.target).value.toUpperCase()); recharger()" aria-label="Table" />
-        <input class="input" placeholder="Code" [value]="fCode()" (change)="fCode.set($any($event.target).value); recharger()" aria-label="Code" />
-        <select class="input" (change)="fType.set($any($event.target).value); recharger()" aria-label="Objet">
-          <option value="">Tous objets</option><option value="ENTRY">Codes</option><option value="TABLE">Tables</option>
-          <option value="COLUMN">Colonnes</option><option value="CATEGORY">Catégories</option>
+        <input class="input" [placeholder]="'Table (REF_…)' | t" [value]="fTable()" (change)="fTable.set($any($event.target).value.toUpperCase()); recharger()" [attr.aria-label]="'Table' | t" />
+        <input class="input" [placeholder]="'Code' | t" [value]="fCode()" (change)="fCode.set($any($event.target).value); recharger()" [attr.aria-label]="'Code' | t" />
+        <select class="input" (change)="fType.set($any($event.target).value); recharger()" [attr.aria-label]="'Objet' | t">
+          <option value="">{{ 'Tous objets' | t }}</option><option value="ENTRY">{{ 'Codes' | t }}</option><option value="TABLE">{{ 'Tables' | t }}</option>
+          <option value="COLUMN">{{ 'Colonnes' | t }}</option><option value="CATEGORY">{{ 'Catégories' | t }}</option><option value="ATTACHMENT">{{ 'Pièces jointes' | t }}</option>
         </select>
-        <select class="input" (change)="fOp.set($any($event.target).value); recharger()" aria-label="Opération">
-          <option value="">Toutes opérations</option>
-          @for (o of operations; track o[0]) { <option [value]="o[0]" [selected]="o[0] === fOp()">{{ o[1] }}</option> }
+        <select class="input" (change)="fOp.set($any($event.target).value); recharger()" [attr.aria-label]="'Opération' | t">
+          <option value="">{{ 'Toutes opérations' | t }}</option>
+          @for (o of operations; track o[0]) { <option [value]="o[0]" [selected]="o[0] === fOp()">{{ o[1] | t }}</option> }
         </select>
-        <select class="input" (change)="fCanal.set($any($event.target).value); recharger()" aria-label="Canal">
-          <option value="">Tous canaux</option><option value="UI">Interface</option><option value="API">API</option>
-          <option value="IMPORT">Import</option><option value="SEED">Chargement initial</option><option value="SQL">SQL direct</option>
+        <select class="input" (change)="fCanal.set($any($event.target).value); recharger()" [attr.aria-label]="'Canal' | t">
+          <option value="">{{ 'Tous canaux' | t }}</option><option value="UI">{{ 'Interface' | t }}</option><option value="API">API</option>
+          <option value="IMPORT">{{ 'Import' | t }}</option><option value="SEED">{{ 'Chargement initial' | t }}</option><option value="SQL">{{ 'SQL direct' | t }}</option>
         </select>
-        <input class="input" placeholder="Auteur" [value]="fAuteur()" (change)="fAuteur.set($any($event.target).value); recharger()" aria-label="Auteur" />
-        <input class="input" type="date" [value]="fDu()" (change)="fDu.set($any($event.target).value); recharger()" aria-label="Depuis le" />
+        <input class="input" [placeholder]="'Auteur' | t" [value]="fAuteur()" (change)="fAuteur.set($any($event.target).value); recharger()" [attr.aria-label]="'Auteur' | t" />
+        <input class="input" type="date" [value]="fDu()" (change)="fDu.set($any($event.target).value); recharger()" [attr.aria-label]="'Depuis le' | t" />
       </div>
     }
     @if (erreur()) { <div class="alert err">{{ erreur() }}</div> }
@@ -45,8 +46,8 @@ const CHAMPS: Record<string, string> = {
           <div class="card pad">
             <div class="between">
               <div class="row">
-                <span class="chip op">{{ ops[h.operation] }}</span>
-                <span class="chip">{{ types[h.entityType] }}</span>
+                <span class="chip op">{{ ops[h.operation] | t }}</span>
+                <span class="chip">{{ types[h.entityType] | t }}</span>
                 @if (h.entityCode) {
                   @if (h.tableCode && h.entityType === 'ENTRY') { <a class="code-tag" [routerLink]="['/tables', h.tableCode]" [queryParams]="{ q: h.entityCode }">{{ h.entityCode }}</a> }
                   @else { <span class="code-tag">{{ h.entityCode }}</span> }
@@ -57,14 +58,14 @@ const CHAMPS: Record<string, string> = {
             </div>
             <div class="meta small">
               <span><nx-icon name="user" [size]="13" /> {{ h.author }}</span>
-              <span><nx-icon name="link" [size]="13" /> {{ canaux[h.channel] ?? h.channel }}</span>
-              @if (h.correlationId) { <span><nx-icon name="upload" [size]="13" /> lot {{ h.correlationId }}</span> }
+              <span><nx-icon name="link" [size]="13" /> {{ (canaux[h.channel] ?? h.channel) | t }}</span>
+              @if (h.correlationId) { <span><nx-icon name="upload" [size]="13" /> {{ 'lot {0}' | t: h.correlationId }}</span> }
               @if (h.reason) { <span class="motif">« {{ h.reason }} »</span> }
             </div>
             @if (h.changes) {
               <div class="diff">
                 @for (c of changements(h); track c.k) {
-                  <span class="k">{{ c.k }}</span>
+                  <span class="k">{{ c.k | t }}</span>
                   <span>@if (c.avant !== '∅') { <del>{{ c.avant }}</del> → } <ins>{{ c.apres }}</ins></span>
                 }
               </div>
@@ -74,11 +75,11 @@ const CHAMPS: Record<string, string> = {
           </div>
         </article>
       } @empty {
-        @if (!chargement()) { <div class="card empty">Aucun événement dans l'historique pour ces critères.</div> }
+        @if (!chargement()) { <div class="card empty">{{ 'Aucun événement dans l\\'historique pour ces critères.' | t }}</div> }
       }
     </div>
     @if (total() > evenements().length) {
-      <button class="btn" (click)="suite()" [disabled]="chargement()"><nx-icon name="refresh" /> Voir plus ({{ total() - evenements().length }} restants)</button>
+      <button class="btn" (click)="suite()" [disabled]="chargement()"><nx-icon name="refresh" /> {{ 'Voir plus ({0} restants)' | t: total() - evenements().length }}</button>
     }
   `,
   styles: [`

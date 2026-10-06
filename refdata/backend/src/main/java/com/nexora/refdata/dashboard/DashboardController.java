@@ -31,6 +31,15 @@ public class DashboardController {
         this.jdbc = jdbc;
     }
 
+    private static Map<String, Object> resume(TableDef t, String cle, Object valeur) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("code", t.code());
+        m.put("nameFr", t.nameFr());
+        m.put("nameEn", t.nameEn());
+        m.put(cle, valeur);
+        return m;
+    }
+
     @GetMapping("/dashboard")
     @Transactional(readOnly = true)
     public Indicateurs indicateurs() {
@@ -44,9 +53,9 @@ public class DashboardController {
         long semaine = jdbc.sql("select count(*) from ref_history where occurred_at >= now() - interval '7 days' and channel <> 'SEED'")
                 .query(Long.class).single();
         List<Map<String, Object>> plusGrandes = tables.stream().sorted(Comparator.comparingLong(TableDef::entryCount).reversed()).limit(6)
-                .map(t -> Map.<String, Object>of("code", t.code(), "nameFr", t.nameFr(), "entryCount", t.entryCount())).toList();
+                .map(t -> resume(t, "entryCount", t.entryCount())).toList();
         List<Map<String, Object>> aCompleter = tables.stream().sorted(Comparator.comparingInt(TableDef::completeness)).limit(6)
-                .map(t -> Map.<String, Object>of("code", t.code(), "nameFr", t.nameFr(), "completeness", t.completeness())).toList();
+                .map(t -> resume(t, "completeness", t.completeness())).toList();
         int moyenne = (int) Math.round(tables.stream().mapToInt(TableDef::completeness).average().orElse(0));
         return new Indicateurs(tables.size(), tables.stream().filter(t -> t.entryCount() > 0).count(), codes, actifs, codes - actifs,
                 semaine, moyenne, bsp, sources, plusGrandes, aCompleter, historique.activite(30),

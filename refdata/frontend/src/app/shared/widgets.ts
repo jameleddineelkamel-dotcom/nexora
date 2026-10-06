@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { Phase } from '../core/models';
+import { TPipe } from '../core/i18n';
 
 /** Anneau de complétude de la fiche ISO 19115. */
 @Component({
@@ -24,9 +25,9 @@ export class Ring {
 /** Pastilles Buy / Ship / Pay (modèle de référence de la chaîne logistique internationale UN/CEFACT). */
 @Component({
   selector: 'nx-bsp',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TPipe],
   template: `@for (p of tout; track p) {
-      <span class="bsp" [class.on]="phases().includes(p)" [attr.data-p]="p" [title]="titres[p]">{{ p[0] }}</span>
+      <span class="bsp" [class.on]="phases().includes(p)" [attr.data-p]="p" [title]="titres[p] | t">{{ p[0] }}</span>
     }`,
   styles: [`
     :host { display: inline-flex; gap: 3px; }

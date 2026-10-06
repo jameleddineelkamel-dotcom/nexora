@@ -133,6 +133,7 @@ public class SeedLoader implements ApplicationRunner {
         }
         // 3. Données : historique ligne à ligne désactivé, un enregistrement par table dans le journal des chargements
         audit.historique(false);
+        audit.synchronisation(false); // les tables physiques sont générées en une fois à la fin
         long total = 0;
         for (Table t : cat.tables()) {
             ClassPathResource fichier = new ClassPathResource("seed/data/" + t.code() + ".jsonl.gz");
@@ -162,8 +163,9 @@ public class SeedLoader implements ApplicationRunner {
         int relachees = jdbc.sql(CARDINALITES_SELON_DONNEES).update();
         audit.historique(true);
         log.info("{} colonne(s) obligatoire(s) selon le rapport mais non renseignée(s) dans les sources : rendues facultatives.", relachees);
-        // 4. Vues SQL referentiel.ref_xxx
+        // 4. Tables physiques referentiel.ref_xxx
         for (Table t : cat.tables()) catalogue.genererVue(t.code());
+        audit.synchronisation(true);
         log.info("Chargement initial : {} catégories, {} tables, {} codes.", categories.size(), cat.tables().size(), total);
     }
 }

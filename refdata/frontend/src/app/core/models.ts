@@ -33,7 +33,11 @@ export interface Entry {
   createdAt?: string; updatedAt?: string;
 }
 
-export interface Page<T> { items: T[]; total: number; page: number; size: number; }
+export interface Attachment {
+  id: number; fileName: string; contentType: string | null; sizeBytes: number; description: string | null; createdAt: string; createdBy: string;
+}
+
+export interface Page<T>{ items: T[]; total: number; page: number; size: number; }
 
 export interface LookupItem { code: string; label: string; parentCode: string | null; }
 
@@ -66,8 +70,8 @@ export interface Proposition {
 export interface Dashboard {
   tables: number; tablesWithData: number; entries: number; activeEntries: number; invalidEntries: number;
   changesLast7Days: number; averageCompleteness: number; bsp: Record<Phase, number>; sources: Record<string, number>;
-  largestTables: { code: string; nameFr: string; entryCount: number }[];
-  toComplete: { code: string; nameFr: string; completeness: number }[];
+  largestTables: { code: string; nameFr: string; nameEn: string | null; entryCount: number }[];
+  toComplete: { code: string; nameFr: string; nameEn: string | null; completeness: number }[];
   activity: Activity[]; recent: HistoryEvent[];
 }
 
