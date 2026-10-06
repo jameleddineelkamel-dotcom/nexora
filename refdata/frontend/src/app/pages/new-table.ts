@@ -131,6 +131,7 @@ const VIDE: ColumnDef[] = [
     .ic.ia { background: var(--gradient); }
     .recap { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; align-items: start; }
     .recap .chip { margin: 0 4px 4px 0; }
+    @media (max-width: 600px) { .recap { grid-template-columns: 1fr; gap: 2px; } .recap .muted { margin-top: 8px; } }
   `],
 })
 export class NewTablePage {

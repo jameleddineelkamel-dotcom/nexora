@@ -6,16 +6,10 @@ import {
   SearchResults, TableDef, TableSummary,
 } from './models';
 
-/** Utilisateur courant : transmis à l'historique (en-tête X-Nexora-User) en attendant le service d'identité NEXORA. */
+/** Préférences d'affichage de l'utilisateur (thème). */
 @Injectable({ providedIn: 'root' })
 export class SessionService {
-  readonly utilisateur = signal(lire('nexora.user') ?? '');
   readonly theme = signal<'light' | 'dark'>((lire('nexora.theme') as 'light' | 'dark') ?? 'light');
-
-  definirUtilisateur(nom: string): void {
-    this.utilisateur.set(nom.trim());
-    ecrire('nexora.user', nom.trim());
-  }
 
   basculerTheme(): void {
     this.theme.set(this.theme() === 'light' ? 'dark' : 'light');
@@ -30,12 +24,10 @@ function ecrire(k: string, v: string): void {
   try { localStorage.setItem(k, v); } catch { /* stockage indisponible */ }
 }
 
+/** Canal « UI » dans l'historique (l'auteur vient du jeton SSO). */
 export const auditInterceptor: HttpInterceptorFn = (req, next) => {
   if (!req.url.startsWith('/api/')) return next(req);
-  const session = inject(SessionService);
-  const headers: Record<string, string> = { 'X-Nexora-Channel': 'UI' };
-  if (session.utilisateur()) headers['X-Nexora-User'] = encodeURIComponent(session.utilisateur());
-  return next(req.clone({ setHeaders: headers }));
+  return next(req.clone({ setHeaders: { 'X-Nexora-Channel': 'UI' } }));
 };
 
 /** Messages d'une réponse d'erreur RFC 9457 (« erreurs »). */

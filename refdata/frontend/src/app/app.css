@@ -39,8 +39,20 @@ kbd { font: 600 11px ui-monospace, Consolas, monospace; padding: 2px 6px; border
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--gradient); color: #fff; display: grid; place-items: center;
   font-size: 12px; font-weight: 700; }
 .nom { font-weight: 600; font-size: 13px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.utilisateur-form { display: flex; gap: 6px; }
-.utilisateur-form .input { width: 200px; height: 34px; }
+.compte { position: relative; }
+.voile-menu { position: fixed; inset: 0; z-index: 30; }
+.menu-compte { position: absolute; right: 0; top: calc(100% + 8px); z-index: 31; width: min(320px, calc(100vw - 24px)); padding: 12px;
+  display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow-lg); }
+.entete-compte { display: flex; gap: 10px; align-items: center; padding: 4px 4px 10px; border-bottom: 1px solid var(--line); }
+.entete-compte b, .entete-compte span { display: block; }
+.avatar.grand { width: 40px; height: 40px; font-size: 14px; flex-shrink: 0; }
+.roles { display: flex; gap: 4px; flex-wrap: wrap; padding: 8px 4px; }
+.menu-compte .item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; border-radius: 9px; background: none;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; text-decoration: none; }
+.menu-compte .item:hover { background: var(--chip); }
+.menu-compte .item.danger { color: var(--danger); }
+.ms.lien { color: var(--accent); text-decoration: none; font-weight: 600; }
+.ms.lien i { background: var(--green); }
 main { padding: 26px 28px 48px; max-width: 1480px; width: 100%; }
 .burger { display: none; }
 .voile { display: none; }
@@ -65,4 +77,11 @@ main { padding: 26px 28px 48px; max-width: 1480px; width: 100%; }
   main { padding: 18px 16px 40px; }
   .recherche kbd, .nom { display: none; }
   .utilisateur { padding-right: 3px; }
+}
+@media (max-width: 600px) {
+  .topbar { gap: 6px; padding: 8px 12px; }
+  .recherche { width: 40px; padding: 0; justify-content: center; flex: 0 0 40px; }
+  .recherche span { display: none; }
+  .langues .btn { padding: 0 6px; }
+  main { padding: 14px 12px 32px; }
 }

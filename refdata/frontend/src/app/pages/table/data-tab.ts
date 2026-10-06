@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, input, signal, untracked } from '@
 import { ApiService, erreurs } from '../../core/api.service';
 import { ColumnDef, Entry, Page, TableDef } from '../../core/models';
 import { I18N, I18n } from '../../core/i18n';
+import { AuthService, DROITS } from '../../core/auth.service';
 import { Icon } from '../../shared/icon';
 import { EntryDrawer } from './entry-drawer';
 
@@ -24,7 +25,7 @@ import { EntryDrawer } from './entry-drawer';
         <input class="input" type="date" [value]="date()" (input)="date.set($any($event.target).value); page.set(0)" />
       </label>
       <span class="grow"></span>
-      <button class="btn primary" (click)="ouvrir(null)" [disabled]="table().status === 'ARCHIVED'"><nx-icon name="plus" /> {{ 'Nouveau code' | t }}</button>
+      @if (auth.a(droits.donnees)) { <button class="btn primary" (click)="ouvrir(null)" [disabled]="table().status === 'ARCHIVED'"><nx-icon name="plus" /> {{ 'Nouveau code' | t }}</button> }
     </div>
 
     @if (hierarchique()) {
@@ -102,6 +103,7 @@ import { EntryDrawer } from './entry-drawer';
     .statuts .on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .date { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
     .date .input { width: 150px; }
+    @media (max-width: 600px) { .date { flex: 1 1 100%; } .date .input { flex: 1; width: auto; } .statuts { flex: 1 1 100%; } .statuts .btn { flex: 1; justify-content: center; } }
     .fil { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
     .fil .check { margin-left: auto; }
     .enfants { margin-left: 6px; height: 24px; }
@@ -113,6 +115,8 @@ import { EntryDrawer } from './entry-drawer';
 export class DataTab {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18n);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
   readonly table = input.required<TableDef>();
   readonly recherche = input('');
 

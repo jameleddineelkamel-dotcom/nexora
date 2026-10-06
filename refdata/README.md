@@ -57,7 +57,21 @@ SELECT * FROM referentiel.ref_country WHERE ref_status = 'ACTIVE';
 
 1. Copier `.env.example` en `.env.local` et choisir `REFDATA_DB_PASSWORD`.
 2. Double-cliquer sur `database\creer-base.cmd` (mot de passe de `postgres` demandé).
-3. Double-cliquer sur **`construire.cmd`** puis **`lancer.cmd`** → http://localhost:8082
+3. Démarrer le service d'authentification [`auth`](../auth/) (port 8090).
+4. Double-cliquer sur **`construire.cmd`** puis **`lancer.cmd`** → http://localhost:8082 (redirection vers la connexion SSO).
+
+### Habilitations
+
+| Fonction | Administrateur | Gestionnaire | Consultation |
+|---|:-:|:-:|:-:|
+| Consulter tables, codes, métadonnées, historique ; exporter | ✔ | ✔ | ✔ |
+| Créer/modifier des codes, charger des fichiers | ✔ | ✔ | |
+| Modifier la fiche de métadonnées, joindre des fichiers | ✔ | ✔ | |
+| Onglet **Structure**, nouvelle table, catégories, archivage | ✔ | | |
+| Onglet **API & SQL** | ✔ | | |
+
+Les fonctions non autorisées sont masquées dans l'interface **et** refusées par l'API (403). Adresse du service
+d'authentification : variables `AUTH_URL`, `AUTH_JWKS_URI`, `AUTH_ISSUER` (par défaut `http://localhost:8090`).
 
 Au premier démarrage, Flyway crée le schéma et le **chargement initial** importe catalogue et données (~17 s).
 

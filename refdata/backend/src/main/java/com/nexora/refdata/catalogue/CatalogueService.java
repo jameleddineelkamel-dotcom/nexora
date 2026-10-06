@@ -5,6 +5,8 @@ import com.nexora.refdata.catalogue.CatalogueModel.Category;
 import com.nexora.refdata.catalogue.CatalogueModel.ColumnDef;
 import com.nexora.refdata.catalogue.CatalogueModel.TableDef;
 import com.nexora.refdata.catalogue.CatalogueModel.TableSummary;
+import com.nexora.refdata.security.Habilitations;
+import com.nexora.refdata.security.SecurityConfig;
 import com.nexora.refdata.web.RefdataException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -132,6 +134,10 @@ public class CatalogueService {
                 actuelle.sourceDocument(), saisie.dataSource() != null ? saisie.dataSource() : actuelle.dataSource(),
                 saisie.status(), saisie.columns() != null ? saisie.columns() : actuelle.columns(), saisie.version(),
                 null, null, 0, 0, 0, null, null), false);
+        // Modifier les colonnes relève du droit « structure » ; la fiche de métadonnées du droit « métadonnées »
+        if (!t.columns().equals(normaliser(actuelle, false).columns()) && !Habilitations.a(SecurityConfig.STRUCTURE))
+            throw new RefdataException(org.springframework.http.HttpStatus.FORBIDDEN,
+                    List.of("Droits insuffisants : la modification de la structure est réservée aux administrateurs du référentiel."));
         List<String> e = new ArrayList<>();
         valider(t, e);
         long id = repo.idDe(actuelle.code());

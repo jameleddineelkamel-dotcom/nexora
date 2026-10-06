@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { ApiService, erreurs } from '../../core/api.service';
 import { Attachment, Category, MetadataField, PHASES, Phase, SOURCES, TableDef, TableSummary } from '../../core/models';
 import { I18N, I18n } from '../../core/i18n';
+import { AuthService, DROITS } from '../../core/auth.service';
 import { Icon } from '../../shared/icon';
 import { Ring } from '../../shared/widgets';
 
@@ -18,7 +19,7 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
   selector: 'nx-metadata-tab',
   imports: [DatePipe, Icon, Ring, ...I18N],
   template: `
-    <div class="stack">
+    <fieldset class="lecture stack" [disabled]="!modifiable()">
       <div class="card pad">
         <div class="between card-title">
           <h2><nx-icon name="tag" /> {{ 'Identité et classement' | t }}</h2>
@@ -69,6 +70,8 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
         </div>
       }
 
+    </fieldset>
+    <div class="stack">
       <div class="card pad">
         <div class="card-title"><h2><nx-icon name="file" /> {{ 'Pièces jointes' | t }}</h2></div>
         <p class="muted small">{{ 'Documents de référence de la table : norme, recommandation UN/CEFACT, note de mise à jour, accord de partage… (20 Mo au plus par fichier).' | t }}</p>
@@ -81,11 +84,11 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
                 <div class="small muted">{{ taille(p.sizeBytes) }} · {{ p.createdBy }} · {{ p.createdAt | date: 'dd/MM/yyyy HH:mm' }}@if (p.description) { · {{ p.description }} }</div>
               </div>
               <a class="btn ghost icon sm" [href]="lien(p)" [attr.download]="p.fileName" [attr.aria-label]="'Télécharger' | t"><nx-icon name="download" /></a>
-              <button class="btn ghost icon sm danger" (click)="retirer(p)" [attr.aria-label]="'Retirer' | t"><nx-icon name="x" /></button>
+              @if (modifiable()) { <button class="btn ghost icon sm danger" (click)="retirer(p)" [attr.aria-label]="'Retirer' | t"><nx-icon name="x" /></button> }
             </div>
           } @empty { <p class="muted small">{{ 'Aucune pièce jointe.' | t }}</p> }
         </div>
-        <div class="pj-ajout">
+        @if (modifiable()) { <div class="pj-ajout">
           <label class="depot" [class.survol]="survol()" (dragover)="$event.preventDefault(); survol.set(true)" (dragleave)="survol.set(false)"
             (drop)="$event.preventDefault(); survol.set(false); choisir($any($event).dataTransfer.files[0])">
             <input type="file" hidden (change)="choisir($any($event.target).files[0])" />
@@ -94,10 +97,12 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
           </label>
           <input class="input" [value]="descriptionPj()" (input)="descriptionPj.set($any($event.target).value)" [placeholder]="'Description (facultatif)' | t" />
           <button class="btn" (click)="joindre()" [disabled]="!fichier() || envoi()"><nx-icon name="plus" /> {{ 'Joindre' | t }}</button>
-        </div>
+        </div> }
         @if (erreurPj()) { <div class="alert err">{{ erreurPj() }}</div> }
       </div>
 
+    </div>
+    <fieldset class="lecture stack" [disabled]="!modifiable()">
       <div class="card pad">
         <div class="card-title"><h2><nx-icon name="sparkles" /> {{ 'Métadonnées complémentaires' | t }}</h2></div>
         <p class="muted small">{{ 'Ajoutez librement d\\'autres métadonnées (ex. « Accord de partage », « URL de la source », « Version UN/CEFACT »).' | t }}</p>
@@ -105,31 +110,35 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
           <div class="libre"><input class="input mono" [value]="k" readonly /><input class="input" [value]="v(k)" (input)="poser(k, $any($event.target).value)" />
             <button class="btn ghost icon" (click)="retirerCle(k)" [attr.aria-label]="'Retirer' | t"><nx-icon name="x" /></button></div>
         }
-        <form class="libre" (submit)="$event.preventDefault(); ajouter(cle.value); cle.value = ''">
+        @if (modifiable()) { <form class="libre" (submit)="$event.preventDefault(); ajouter(cle.value); cle.value = ''">
           <input #cle class="input mono" [placeholder]="'nouvelleMetadonnee' | t" [attr.aria-label]="'Clé de la nouvelle métadonnée' | t" />
           <button class="btn" type="submit"><nx-icon name="plus" /> {{ 'Créer la métadonnée' | t }}</button>
-        </form>
+        </form> }
       </div>
 
+    </fieldset>
+    @if (modifiable() || auth.a(droits.structure)) {
       <div class="card pad stack">
+        @if (modifiable()) {
         <div class="field"><label>{{ 'Motif de la modification' | t }}</label><input class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" /></div>
+        }
         @if (messages().length) { <div class="alert err"><ul>@for (m of messages(); track m) { <li>{{ m }}</li> }</ul></div> }
         @if (ok()) { <div class="alert ok"><nx-icon name="check" /> {{ 'Fiche enregistrée. Les changements sont dans l\\'historique de la table.' | t }}</div> }
         <div class="row">
-          <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer la fiche' | t }}</button>
-          @if (table().status === 'ARCHIVED') {
+          @if (modifiable()) { <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer la fiche' | t }}</button> }
+          @if (!auth.a(droits.structure)) { } @else if (table().status === 'ARCHIVED') {
             <button class="btn" (click)="statut('ACTIVE')"><nx-icon name="refresh" /> {{ 'Réactiver la table' | t }}</button>
           } @else {
             <button class="btn danger" (click)="statut('ARCHIVED')"><nx-icon name="archive" /> {{ 'Archiver la table' | t }}</button>
           }
         </div>
       </div>
-    </div>
+    }
   `,
   styles: [`
     p { margin: 0 0 10px; }
     .manque { font-weight: 500; color: var(--warn); margin-left: 6px; }
-    .phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+    .phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 8px; }
     .phase { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 10px 34px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; position: relative; }
     .phase input { position: absolute; left: 12px; top: 13px; }
     .phase span { font-size: 12px; color: var(--muted); }
@@ -151,6 +160,10 @@ const GROUPES: { code: MetadataField['group']; titre: string; icone: string }[] 
 export class MetadataTab {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18n);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
+  /** Fiche modifiable avec le droit « métadonnées » ; sinon lecture seule. */
+  protected readonly modifiable = computed(() => this.auth.a(DROITS.metadonnees));
   readonly table = input.required<TableDef>();
   readonly categories = input<Category[]>([]);
   readonly enregistree = output<TableDef>();
@@ -243,7 +256,7 @@ export class MetadataTab {
   // ---------- Pièces jointes ----------
   private chargerPieces(): void { this.api.piecesJointes(this.table().code).subscribe(p => this.pieces.set(p)); }
   protected choisir(f: File | undefined): void { if (f) { this.fichier.set(f); this.erreurPj.set(null); } }
-  protected lien(p: Attachment): string { return this.api.urlPieceJointe(this.table().code, p.id); }
+  protected lien(p: Attachment): string { return this.auth.lien(this.api.urlPieceJointe(this.table().code, p.id)); }
 
   protected joindre(): void {
     const f = this.fichier();

@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { ApiService, erreurs } from '../../core/api.service';
 import { ColumnDef, Entry, TableDef } from '../../core/models';
 import { I18N, I18n } from '../../core/i18n';
+import { AuthService, DROITS } from '../../core/auth.service';
 import { Icon } from '../../shared/icon';
 import { RefPicker } from '../../shared/ref-picker';
 import { HistoryList } from '../../shared/history-list';
@@ -37,7 +38,7 @@ import { HistoryList } from '../../shared/history-list';
         @if (vue() === 'hist') {
           <nx-history-list [table]="table().code" [code]="entree()!.code" />
         } @else {
-          <form class="stack" (submit)="$event.preventDefault(); enregistrer()">
+          <form class="stack" (submit)="$event.preventDefault(); enregistrer()"><fieldset class="lecture stack" [disabled]="!modifiable()">
             <div class="field">
               <label for="f-code">{{ libelle(colCode(), 'Code') }} *</label>
               <input id="f-code" class="input mono" [value]="code()" (input)="code.set($any($event.target).value)" [readonly]="!nouveau()"
@@ -87,19 +88,21 @@ import { HistoryList } from '../../shared/history-list';
               <div class="field"><label for="f-du">{{ 'Début de validité' | t }}</label><input id="f-du" class="input" type="date" [value]="du()" (input)="du.set($any($event.target).value)" /></div>
               <div class="field"><label for="f-au">{{ 'Fin de validité' | t }}</label><input id="f-au" class="input" type="date" [value]="au()" (input)="au.set($any($event.target).value)" /></div>
             </div>
+            @if (modifiable()) {
             <div class="field"><label for="f-motif">{{ 'Motif de la modification (historique)' | t }}</label>
               <input id="f-motif" class="input" [value]="motif()" (input)="motif.set($any($event.target).value)" [placeholder]="'Ex. mise à jour ISO 3166 du 2026-06-01' | t" /></div>
+            }
             @if (messages().length) { <div class="alert err"><nx-icon name="alert" /><ul>@for (m of messages(); track m) { <li>{{ m }}</li> }</ul></div> }
             @if (!nouveau()) {
               <p class="muted small">{{ 'Version {0} · créé le {1} · modifié le {2}' | t: entree()!.version : (entree()!.createdAt | date: 'dd/MM/yyyy') : (entree()!.updatedAt | date: 'dd/MM/yyyy HH:mm') }}</p>
             }
-            <button type="submit" hidden></button>
+            <button type="submit" hidden></button></fieldset>
           </form>
         }
       </div>
       @if (vue() === 'form') {
         <footer>
-          @if (!nouveau() && entree()!.status === 'ACTIVE') {
+          @if (modifiable() && !nouveau() && entree()!.status === 'ACTIVE') {
             @if (confirmation()) {
               <input class="input date" type="date" [value]="dateInvalidation()" (input)="dateInvalidation.set($any($event.target).value)" [attr.aria-label]="'Date d\\'invalidation' | t" />
               <button class="btn danger" (click)="invalider()" [disabled]="occupe()"><nx-icon name="ban" /> {{ 'Confirmer l\\'invalidation' | t }}</button>
@@ -107,12 +110,12 @@ import { HistoryList } from '../../shared/history-list';
               <button class="btn danger" (click)="confirmation.set(true)"><nx-icon name="ban" /> {{ 'Invalider' | t }}</button>
             }
           }
-          @if (!nouveau() && entree()!.status === 'INVALID') {
+          @if (modifiable() && !nouveau() && entree()!.status === 'INVALID') {
             <button class="btn" (click)="reactiver()" [disabled]="occupe()"><nx-icon name="refresh" /> {{ 'Réactiver' | t }}</button>
           }
           <span class="grow"></span>
-          <button class="btn" (click)="fermer.emit()">{{ 'Annuler' | t }}</button>
-          <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer' | t }}</button>
+          <button class="btn" (click)="fermer.emit()">{{ (modifiable() ? 'Annuler' : 'Fermer') | t }}</button>
+          @if (modifiable()) { <button class="btn primary" (click)="enregistrer()" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Enregistrer' | t }}</button> }
         </footer>
       }
     </aside>
@@ -126,6 +129,9 @@ import { HistoryList } from '../../shared/history-list';
 export class EntryDrawer {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18n);
+  private readonly auth = inject(AuthService);
+  /** Consultation : fiche en lecture seule. */
+  protected readonly modifiable = computed(() => this.auth.a(DROITS.donnees) && this.table().status !== 'ARCHIVED');
   readonly table = input.required<TableDef>();
   readonly entree = input<Entry | null>(null);
   readonly fermer = output<void>();

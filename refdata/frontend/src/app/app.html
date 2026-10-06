@@ -14,10 +14,13 @@
         </a>
       }
     </nav>
-    <a routerLink="/nouvelle-table" class="btn primary nouvelle" (click)="menuOuvert.set(false)"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a>
+    @if (auth.a(droits.structure)) {
+      <a routerLink="/nouvelle-table" class="btn primary nouvelle" (click)="menuOuvert.set(false)"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a>
+    }
     <div class="plateforme">
       <span class="label">{{ 'Plateforme NEXORA' | t }}</span>
       <span class="ms on"><i></i> {{ 'Référentiel Commun' | t }}</span>
+      @if (auth.a(droits.administration)) { <a class="ms lien" [href]="auth.administration()"><i></i> {{ 'Accès (SSO)' | t }}</a> } @else { <span class="ms on"><i></i> {{ 'Accès (SSO)' | t }}</span> }
       <span class="ms"><i></i> Registration</span>
       <span class="ms"><i></i> {{ 'Procédures' | t }}</span>
       <span class="ms"><i></i> e-Services</span>
@@ -41,15 +44,27 @@
       <button class="btn icon ghost" (click)="session.basculerTheme()" [attr.aria-label]="(session.theme() === 'light' ? 'Mode sombre' : 'Mode clair') | t">
         <nx-icon [name]="session.theme() === 'light' ? 'moon' : 'sun'" />
       </button>
-      @if (editionUtilisateur()) {
-        <form class="utilisateur-form" (submit)="$event.preventDefault(); enregistrerUtilisateur(nom.value)">
-          <input #nom class="input" [placeholder]="'Votre nom (historique)' | t" [value]="session.utilisateur()" [attr.aria-label]="'Votre nom' | t" />
-          <button class="btn sm" type="submit"><nx-icon name="check" /></button>
-        </form>
-      } @else {
-        <button class="utilisateur" (click)="editionUtilisateur.set(true)" [title]="'Auteur enregistré dans l\'historique' | t">
-          <span class="avatar">{{ initiales() }}</span><span class="nom">{{ session.utilisateur() }}</span>
-        </button>
+      @if (auth.utilisateur(); as u) {
+        <div class="compte">
+          <button class="utilisateur" (click)="menuCompte.set(!menuCompte())" [attr.aria-expanded]="menuCompte()" [attr.aria-label]="'Mon compte' | t">
+            <span class="avatar">{{ initiales() }}</span><span class="nom">{{ u.name }}</span>
+          </button>
+          @if (menuCompte()) {
+            <div class="voile-menu" (click)="menuCompte.set(false)"></div>
+            <div class="menu-compte card" role="menu">
+              <div class="entete-compte">
+                <span class="avatar grand">{{ initiales() }}</span>
+                <div><b>{{ u.name }}</b><span class="muted small">{{ u.username }}@if (u.email) { · {{ u.email }} }</span></div>
+              </div>
+              <div class="roles">@for (r of u.roles; track r) { <span class="chip accent">{{ libelleRole(r) | t }}</span> }</div>
+              <a class="item" [href]="auth.compte()" role="menuitem"><nx-icon name="user" /> {{ 'Mon compte et mot de passe' | t }}</a>
+              @if (auth.a(droits.administration)) {
+                <a class="item" [href]="auth.administration()" role="menuitem"><nx-icon name="landmark" /> {{ 'Administration des accès' | t }}</a>
+              }
+              <button class="item danger" (click)="auth.deconnecter()" role="menuitem"><nx-icon name="back" /> {{ 'Se déconnecter' | t }}</button>
+            </div>
+          }
+        </div>
       }
     </header>
     <main><router-outlet /></main>

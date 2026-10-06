@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService, erreurs } from '../../core/api.service';
 import { Category, SOURCES, TableDef } from '../../core/models';
 import { I18N, I18n } from '../../core/i18n';
+import { AuthService, DROITS } from '../../core/auth.service';
 import { Icon } from '../../shared/icon';
 import { Bsp, Ring } from '../../shared/widgets';
 import { HistoryList } from '../../shared/history-list';
@@ -51,7 +52,7 @@ type Onglet = 'donnees' | 'structure' | 'metadonnees' | 'historique' | 'chargeme
       </header>
 
       <div class="tabs" role="tablist">
-        @for (o of onglets; track o.code) {
+        @for (o of visibles(); track o.code) {
           <button class="tab" role="tab" [class.on]="actif() === o.code" [attr.aria-selected]="actif() === o.code" (click)="changer(o.code)">
             <nx-icon [name]="o.icone" [size]="16" /> {{ o.libelle | t }}
           </button>
@@ -83,6 +84,7 @@ type Onglet = 'donnees' | 'structure' | 'metadonnees' | 'historique' | 'chargeme
     .chiffres b { font-size: 22px; }
     .chiffres span { font-size: 12px; color: var(--muted); }
     .pied { margin-top: 8px; }
+    @media (max-width: 600px) { .chiffres { gap: 14px; width: 100%; justify-content: space-between; } .chiffres b { font-size: 18px; } .titre { flex-basis: 100%; } }
   `],
 })
 export class TablePage {
@@ -92,7 +94,17 @@ export class TablePage {
   readonly code = input.required<string>();
   readonly onglet = input<Onglet | undefined>(undefined);
   readonly q = input<string | undefined>(undefined);
-  protected readonly actif = computed<Onglet>(() => this.onglet() ?? 'donnees');
+  private readonly auth = inject(AuthService);
+  /** Onglets selon les habilitations : Structure et API & SQL réservés, Import / export selon les droits. */
+  protected readonly visibles = computed(() => this.onglets.filter(o =>
+    o.code === 'structure' ? this.auth.a(DROITS.structure)
+      : o.code === 'api' ? this.auth.a(DROITS.api)
+      : o.code === 'chargement' ? this.auth.a(DROITS.donnees) || this.auth.a(DROITS.exporter)
+      : true));
+  protected readonly actif = computed<Onglet>(() => {
+    const o = this.onglet() ?? 'donnees';
+    return this.visibles().some(v => v.code === o) ? o : 'donnees';
+  });
 
   protected readonly table = signal<TableDef | null>(null);
   protected readonly categories = signal<Category[]>([]);

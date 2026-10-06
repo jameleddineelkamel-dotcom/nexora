@@ -7,6 +7,7 @@ internationale** (Buy – Ship – Pay).
 | Microservice | Rôle | État | Port |
 |---|---|---|---|
 | [`refdata`](refdata/) | **Référentiel Commun** : tables de référence REF_*, métadonnées ISO 19115, historique, services de requête | ✅ disponible | 8082 |
+| [`auth`](auth/) | **Accès (SSO)** : authentification unique, utilisateurs, groupes, rôles, habilitations, journal de sécurité | ✅ disponible | 8090 |
 | `registration` | Registration : enregistrement des opérateurs, importateurs/exportateurs, déclarants, banques | à venir | 8083 |
 | `procedures` | Procédures du commerce extérieur (import, export, transit, contrôles techniques) | à venir | 8084 |
 | `eservices` | e-Services : formulaires, demandes, documents électroniques | à venir | 8085 |
@@ -18,7 +19,11 @@ internationale** (Buy – Ship – Pay).
   qui embarque son interface, **multilingue** (français, anglais).
 - **Une base par microservice** (`nexora_<service>`), secrets dans `.env.local` (jamais versionné).
 - **API REST versionnée** : `/api/v1/...`, erreurs au format RFC 9457 (`application/problem+json`, propriété `erreurs`).
-- **Traçabilité** : chaque appel d'écriture transmet `X-Nexora-User`, `X-Nexora-Channel` (UI, API, IMPORT, SYNC) et
+- **Sécurité** : connexion unique via [`auth`](auth/) (JWT RS256, clé publique JWKS) ; chaque API exige
+  `Authorization: Bearer` et contrôle les droits de la revendication `permissions`
+  (rôles livrés : Administrateur, Gestionnaire, Consultation).
+- **Interfaces responsives** : ordinateur, tablette et mobile.
+- **Traçabilité** : chaque écriture est attribuée à l'utilisateur du jeton et transmet `X-Nexora-Channel` (UI, API, IMPORT, SYNC) et
   `X-Nexora-Reason` ; ces métadonnées alimentent l'historique de chaque service.
 - **Données de référence** : les autres services ne dupliquent pas les listes de codes ; ils interrogent `refdata`
   (`GET /api/v1/lookup/{REF_TABLE}`) ou ses tables physiques `referentiel.ref_*`.

@@ -4,6 +4,7 @@ import { ApiService, erreurs } from '../../core/api.service';
 import { ImportResult, ImportRun, TableDef } from '../../core/models';
 import { Icon } from '../../shared/icon';
 import { I18N } from '../../core/i18n';
+import { AuthService, DROITS } from '../../core/auth.service';
 
 /** Chargement des listes de codes (simulation puis application) et exports. */
 @Component({
@@ -11,6 +12,7 @@ import { I18N } from '../../core/i18n';
   imports: [DatePipe, Icon, ...I18N],
   template: `
     <div class="grid k2">
+      @if (auth.a(droits.donnees)) {
       <div class="card pad stack">
         <h2><nx-icon name="upload" /> {{ 'Charger une liste de codes' | t }}</h2>
         <label class="depot" [class.survol]="survol()" (dragover)="$event.preventDefault(); survol.set(true)" (dragleave)="survol.set(false)"
@@ -51,7 +53,9 @@ import { I18N } from '../../core/i18n';
         }
       </div>
 
+      }
       <div class="stack">
+        @if (auth.a(droits.exporter)) {
         <div class="card pad stack">
           <h2><nx-icon name="download" /> {{ 'Exporter' | t }}</h2>
           <p class="muted small">{{ 'Fichiers ré-importables. L\\'export Excel contient aussi la structure et la fiche ISO 19115.' | t }}</p>
@@ -61,11 +65,12 @@ import { I18N } from '../../core/i18n';
             </select>
           </div>
           <div class="row">
-            <a class="btn" [href]="api.urlExport(table().code, 'xlsx', statut())"><nx-icon name="table" /> Excel</a>
-            <a class="btn" [href]="api.urlExport(table().code, 'csv', statut())"><nx-icon name="file" /> CSV</a>
-            <a class="btn" [href]="api.urlExport(table().code, 'json', statut())"><nx-icon name="code" /> JSON</a>
+            <a class="btn" [href]="auth.lien(api.urlExport(table().code, 'xlsx', statut()))"><nx-icon name="table" /> Excel</a>
+            <a class="btn" [href]="auth.lien(api.urlExport(table().code, 'csv', statut()))"><nx-icon name="file" /> CSV</a>
+            <a class="btn" [href]="auth.lien(api.urlExport(table().code, 'json', statut()))"><nx-icon name="code" /> JSON</a>
           </div>
         </div>
+        }
         <div class="card pad">
           <h2 class="card-title"><nx-icon name="history" /> {{ 'Journal des chargements' | t }}</h2>
           @for (c of journal(); track c.id) {
@@ -100,6 +105,8 @@ import { I18N } from '../../core/i18n';
 })
 export class IoTab {
   protected readonly api = inject(ApiService);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
   readonly table = input.required<TableDef>();
   readonly importe = output<void>();
   protected readonly fichier = signal<File | null>(null);

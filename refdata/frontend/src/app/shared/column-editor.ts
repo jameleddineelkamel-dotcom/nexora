@@ -67,6 +67,7 @@ import { I18N } from '../core/i18n';
     .ordre .btn { height: 17px; width: 24px; font-size: 11px; }
     .details { padding: 12px 6px 4px 36px; }
     @media (max-width: 1100px) { .ligne { grid-template-columns: 1fr 1fr; } .ordre { display: none; } }
+    @media (max-width: 520px) { .ligne { grid-template-columns: 1fr; } .details { padding-left: 4px; } }
   `],
 })
 export class ColumnEditor {

@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService, erreurs } from '../core/api.service';
 import { Category, Phase, SOURCES, TableSummary } from '../core/models';
 import { I18N, I18n } from '../core/i18n';
+import { AuthService, DROITS } from '../core/auth.service';
 import { Icon } from '../shared/icon';
 import { Bsp, Ring } from '../shared/widgets';
 
@@ -17,7 +18,7 @@ const plier = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
         <h1>{{ 'Catalogue des tables de référence' | t }}</h1>
         <p class="muted">{{ '{0} table(s) · rapport « Référentiel Commun » (ISO 19115), recommandations UN/CEFACT, normes CEMAC et nationales.' | t: filtrees().length }}</p>
       </div>
-      <a routerLink="/nouvelle-table" class="btn primary"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a>
+      @if (auth.a(droits.structure)) { <a routerLink="/nouvelle-table" class="btn primary"><nx-icon name="plus" /> {{ 'Nouvelle table' | t }}</a> }
     </div>
 
     <div class="mise-en-page">
@@ -130,6 +131,8 @@ export class CataloguePage {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly i18n = inject(I18n);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
   readonly category = input<string | null>(null);
 
   protected readonly categories = signal<Category[]>([]);

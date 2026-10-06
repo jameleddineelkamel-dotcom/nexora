@@ -57,7 +57,10 @@ public class AuditContext {
         jdbc.sql("select set_config('nexora.sync', :v, true)").param("v", actif ? "on" : "off").query((rs, i) -> 1).single();
     }
 
+    /** Identité issue du jeton SSO ; à défaut (tâches internes, appels sans jeton) l'en-tête X-Nexora-User. */
     public String utilisateur() {
+        var jeton = com.nexora.refdata.security.Habilitations.utilisateur();
+        if (jeton.isPresent()) return jeton.get();
         String u = entete(ENTETE_UTILISATEUR);
         return u == null || u.isBlank() ? (requete() == null ? "systeme" : "anonyme") : u.strip();
     }

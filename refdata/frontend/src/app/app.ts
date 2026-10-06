@@ -6,6 +6,7 @@ import { ApiService, SessionService } from './core/api.service';
 import { SearchResults } from './core/models';
 import { Icon } from './shared/icon';
 import { I18n, LANGUES, TPipe } from './core/i18n';
+import { AuthService, DROITS } from './core/auth.service';
 
 interface Resultat { type: 'table' | 'code'; titre: string; sous: string; code: string; lien: string[]; query?: Record<string, string>; }
 
@@ -20,6 +21,9 @@ export class App {
   private readonly router = inject(Router);
   protected readonly session = inject(SessionService);
   protected readonly i18n = inject(I18n);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
+  protected readonly menuCompte = signal(false);
   protected readonly langues = LANGUES;
 
   protected readonly nav = [
@@ -48,9 +52,6 @@ export class App {
     ];
   });
 
-  // Utilisateur courant (historique)
-  protected readonly editionUtilisateur = signal(false);
-
   constructor() {
     effect(() => document.documentElement.setAttribute('data-theme', this.session.theme()));
     this.saisie$.pipe(
@@ -62,7 +63,6 @@ export class App {
       }),
       takeUntilDestroyed(inject(DestroyRef)),
     ).subscribe(r => { this.resultats.set(r); this.selection.set(0); this.recherche.set(false); });
-    if (!this.session.utilisateur()) this.editionUtilisateur.set(true);
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -95,13 +95,11 @@ export class App {
     this.router.navigate(r.lien, { queryParams: r.query });
   }
 
-  protected enregistrerUtilisateur(nom: string): void {
-    if (!nom.trim()) return;
-    this.session.definirUtilisateur(nom);
-    this.editionUtilisateur.set(false);
+  protected libelleRole(r: string): string {
+    return ({ ADMINISTRATEUR: 'Administrateur', GESTIONNAIRE: 'Gestionnaire', CONSULTATION: 'Consultation' } as Record<string, string>)[r] ?? r;
   }
 
   protected initiales(): string {
-    return this.session.utilisateur().split(/[\s.\-_]+/).filter(Boolean).slice(0, 2).map(m => m[0].toUpperCase()).join('') || '?';
+    return (this.auth.utilisateur()?.name ?? '').split(/[\s.\-_]+/).filter(Boolean).slice(0, 2).map(m => m[0].toUpperCase()).join('') || '?';
   }
 }

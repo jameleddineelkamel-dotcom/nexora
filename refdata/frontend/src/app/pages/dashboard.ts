@@ -5,6 +5,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService, erreurs } from '../core/api.service';
 import { Category, Dashboard, OPERATIONS, PHASES } from '../core/models';
 import { I18N } from '../core/i18n';
+import { AuthService, DROITS } from '../core/auth.service';
 import { Icon } from '../shared/icon';
 import { Ring, Spark } from '../shared/widgets';
 
@@ -19,7 +20,7 @@ import { Ring, Spark } from '../shared/widgets';
         <p>{{ 'Listes de codes internationales (ISO, UN/CEFACT, OMD), régionales (CEMAC) et nationales, décrites selon l\\'ISO 19115, historisées et exposées aux autres services de la plateforme.' | t }}</p>
         <div class="row">
           <a routerLink="/catalogue" class="btn primary"><nx-icon name="grid" /> {{ 'Explorer le catalogue' | t }}</a>
-          <a routerLink="/nouvelle-table" class="btn"><nx-icon name="plus" /> {{ 'Créer une table' | t }}</a>
+          @if (auth.a(droits.structure)) { <a routerLink="/nouvelle-table" class="btn"><nx-icon name="plus" /> {{ 'Créer une table' | t }}</a> }
         </div>
       </div>
       <div class="flux" aria-hidden="true">
@@ -134,6 +135,8 @@ import { Ring, Spark } from '../shared/widgets';
 })
 export class DashboardPage {
   private readonly api = inject(ApiService);
+  protected readonly auth = inject(AuthService);
+  protected readonly droits = DROITS;
   protected readonly d = signal<Dashboard | null>(null);
   protected readonly categories = signal<Category[]>([]);
   protected readonly erreur = signal<string | null>(null);
