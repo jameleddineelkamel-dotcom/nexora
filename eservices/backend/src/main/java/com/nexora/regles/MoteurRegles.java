@@ -52,7 +52,10 @@ public final class MoteurRegles {
             });
             s.insert(demande);
             if (antecedents != null) antecedents.forEach(s::insert);
-            s.getAgenda().getAgendaGroup(point).setFocus();
+            // Aucune règle déclarée pour ce point d'évaluation (agenda-group absent) : rien à évaluer
+            var groupe = s.getAgenda().getAgendaGroup(point);
+            if (groupe == null) return resultat;
+            groupe.setFocus();
             s.fireAllRules();
         } finally {
             s.dispose();

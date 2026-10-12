@@ -14,8 +14,19 @@ public final class Agents {
     public record Proposition(String kind, String target, String title, Map<String, Object> payload, String rationale, String sourceExcerpt,
                               String type, double confidence) {}
 
-    /** Contexte d'une exécution : version visée, objectif, texte source éventuel (SFD), modèle de langage disponible. */
-    public record Contexte(VersionComplete version, String objectif, String texteSource, String nomSource) {}
+    /** Contexte d'une exécution : version visée, objectif, texte source éventuel (SFD) et diagrammes joints (.drawio, .bpmn). */
+    public record Contexte(VersionComplete version, String objectif, String texteSource, String nomSource, List<Diagramme> diagrammes) {
+        public Contexte(VersionComplete version, String objectif, String texteSource, String nomSource) {
+            this(version, objectif, texteSource, nomSource, List.of());
+        }
+    }
+
+    /** Diagramme joint à une exécution : source draw.io ou BPMN 2.0 (souvent celle des figures de la SFD). */
+    public record Diagramme(String nom, String contenu) {
+        public boolean bpmn() {
+            return contenu.contains("http://www.omg.org/spec/BPMN/20100524/MODEL");
+        }
+    }
 
     public record Sortie(String resume, List<Proposition> propositions, String modele) {
         public static Sortie de(String resume, List<Proposition> propositions) {

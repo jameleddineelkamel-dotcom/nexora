@@ -36,7 +36,7 @@ public class TacheService {
 
     public record Tache(String id, String name, String taskKey, String formKey, String assignee, OffsetDateTime created, OffsetDateTime due,
                         List<String> decisions, UUID dossierId, String dossierNo, String procedureCode, String requestType, String requestNature,
-                        String applicantName, String status) {}
+                        String applicantName, String status, List<String> fields) {}
 
     public record Decision(String decision, String observation, Map<String, Object> data) {}
 
@@ -86,18 +86,23 @@ public class TacheService {
                 t.getCreateTime() == null ? null : t.getCreateTime().toInstant().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
                 d == null || d.slaDueAt() == null ? null : d.slaDueAt(), decisions(t),
                 d == null ? null : d.id(), cur, d == null ? null : d.procedureCode(), d == null ? null : d.requestType(),
-                d == null ? null : d.requestNature(), d == null ? null : d.applicantName(), d == null ? null : d.status());
+                d == null ? null : d.requestNature(), d == null ? null : d.applicantName(), d == null ? null : d.status(), propriete(t, "fields"));
     }
 
     /** Décisions déclarées dans le BPMN (camunda:property « decisions »). */
     private List<String> decisions(Task t) {
-        return decisionsCache.computeIfAbsent(t.getProcessDefinitionId() + "/" + t.getTaskDefinitionKey(), k -> {
+        return propriete(t, "decisions");
+    }
+
+    /** Liste déclarée par une propriété de la tâche BPMN (camunda:property) : « decisions », « fields » (données d'instruction exigées). */
+    private List<String> propriete(Task t, String nom) {
+        return decisionsCache.computeIfAbsent(t.getProcessDefinitionId() + "/" + t.getTaskDefinitionKey() + "/" + nom, k -> {
             ModelElementInstance e = depot.getBpmnModelInstance(t.getProcessDefinitionId()).getModelElementById(t.getTaskDefinitionKey());
             if (!(e instanceof UserTask u) || u.getExtensionElements() == null) return List.of();
             for (ModelElementInstance x : u.getExtensionElements().getElements())
                 if (x.getDomElement().getLocalName().equals("properties"))
                     for (DomElement p : x.getDomElement().getChildElements())
-                        if ("decisions".equals(p.getAttribute("name")))
+                        if (nom.equals(p.getAttribute("name")))
                             return Arrays.stream(p.getAttribute("value").split(",")).map(String::strip).filter(s -> !s.isEmpty()).toList();
             return List.of();
         });
@@ -124,6 +129,9 @@ public class TacheService {
         journal.contexte();
         if (formulaire.endsWith(":complement") && dec.data() != null && !dec.data().isEmpty() && info.dossierId() != null)
             dossierService.modifier(info.dossierId(), dec.data());
+        // Données saisies par l'organisme instructeur (section INSTRUCTION) : exigées pour une décision favorable
+        if (formulaire.endsWith(":traitement") && info.dossierId() != null)
+            dossierService.instruire(info.dossierId(), dec.data() == null ? Map.of() : dec.data(), info.fields(), !OBSERVATION_OBLIGATOIRE.contains(decision));
         Map<String, Object> variables = new HashMap<>();
         variables.put(formulaire.endsWith(":signature") ? "decisionSignataire" : "decision", decision);
         variables.put("decideur", moi);

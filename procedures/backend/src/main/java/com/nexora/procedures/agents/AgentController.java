@@ -6,8 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /** Agents IA du studio : catalogue et politique, exécutions, propositions et revue humaine. */
 @RestController
@@ -37,20 +36,37 @@ public class AgentController {
     /** Exécution d'un agent (ou de l'orchestrateur) avec un texte source éventuel. */
     @PostMapping(value = "/versions/{id}/agents/{code}/run", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> executer(@PathVariable long id, @PathVariable String code, @RequestBody(required = false) Demande d) {
-        return agents.executer(id, code, d == null ? null : d.objective(), d == null ? null : d.text(), d == null ? null : d.sourceName());
+        return agents.executer(id, code, d == null ? null : d.objective(), d == null ? null : d.text(), d == null ? null : d.sourceName(), List.of());
     }
 
-    /** Exécution avec une SFD jointe (Word .docx ou texte) : le Document Agent l'analyse. */
+    /**
+     * Exécution avec des fichiers joints : SFD ou texte réglementaire (.docx, .txt, .md), analysés par le Document Agent,
+     * et diagrammes (.drawio, .bpmn, .xml) importés par le Process Agent.
+     */
     @PostMapping(value = "/versions/{id}/agents/{code}/run", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> executerAvecFichier(@PathVariable long id, @PathVariable String code, @RequestParam(required = false) String objective,
-                                                   @RequestParam("file") MultipartFile fichier) {
-        String texte;
-        try {
-            texte = TexteSource.lire(fichier.getBytes(), fichier.getOriginalFilename()).complet();
-        } catch (IOException | IllegalArgumentException e) {
-            throw ProceduresException.invalide("Document illisible : " + e.getMessage());
+                                                   @RequestParam("file") List<MultipartFile> fichiers) {
+        StringBuilder texte = new StringBuilder();
+        List<String> noms = new ArrayList<>();
+        List<Agents.Diagramme> diagrammes = new ArrayList<>();
+        for (MultipartFile fichier : fichiers) {
+            String nom = Objects.toString(fichier.getOriginalFilename(), "document");
+            try {
+                byte[] contenu = fichier.getBytes();
+                String brut = new String(contenu, java.nio.charset.StandardCharsets.UTF_8);
+                if (nom.toLowerCase(Locale.ROOT).matches(".*\\.(drawio|bpmn|bpmn20\\.xml|xml)$") || DrawioSource.estDrawio(brut)) {
+                    if (!DrawioSource.estDrawio(brut) && !brut.contains("http://www.omg.org/spec/BPMN/20100524/MODEL"))
+                        throw new IllegalArgumentException("ni draw.io ni BPMN 2.0");
+                    diagrammes.add(new Agents.Diagramme(nom, brut));
+                } else {
+                    texte.append(TexteSource.lire(contenu, nom).complet()).append('\n');
+                    noms.add(nom);
+                }
+            } catch (IOException | IllegalArgumentException e) {
+                throw ProceduresException.invalide("Fichier illisible (" + nom + ") : " + e.getMessage());
+            }
         }
-        return agents.executer(id, code, objective, texte, fichier.getOriginalFilename());
+        return agents.executer(id, code, objective, texte.isEmpty() ? null : texte.toString(), noms.isEmpty() ? null : String.join(", ", noms), diagrammes);
     }
 
     @GetMapping("/versions/{id}/runs")

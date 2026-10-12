@@ -118,6 +118,8 @@ export class FormulaireDynamique {
   readonly precedent = input<Donnees | null>(null);
   readonly nature = input('INITIAL');
   readonly lectureSeule = input(false);
+  /** Sections non affichées (ex. INSTRUCTION, saisie par l'organisme instructeur, absente du formulaire du demandeur). */
+  readonly sectionsMasquees = input<string[]>([]);
   readonly erreurs = input<{ champ: string; message: string; ligne: number | null }[]>([]);
   readonly modification = output<Donnees>();
   protected readonly onglet = signal<string>('');
@@ -125,7 +127,7 @@ export class FormulaireDynamique {
   protected readonly sections = computed(() => {
     const s = [...this.form().sections].sort((a, b) => a.sortOrder - b.sortOrder);
     // La section « Demande » ne contient que des champs de renouvellement / amendement : masquée pour une demande initiale
-    return s.filter(x => this.champs(x.code).length > 0);
+    return s.filter(x => this.champs(x.code).length > 0 && !this.sectionsMasquees().includes(x.code));
   });
 
   constructor() {

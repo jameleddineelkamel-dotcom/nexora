@@ -122,4 +122,6 @@ export const EN: Record<string, string> = {
   'Étape': 'Step', 'État': 'State', 'à jour': 'up to date', 'à payer': 'to pay', 'à signer': 'to sign', 'à traiter': 'to process', 'échéance dépassée': 'past due date',
   // Messages renvoyés par le service (validation, droits)
   'Le service eservices ne répond pas.': 'The eservices service is not responding.',
+  "Données d'instruction": "Processing data",
+  "Données saisies par l'organisme instructeur ; celles marquées * sont exigées pour une décision favorable.": "Data entered by the processing body; those marked * are required for a favourable decision.",
 };

@@ -55,11 +55,40 @@ Renseignez le **code** (majuscules, ex. `CERT_ORIGINE`), le **code CUR** à 3 le
 | **Messages et flux** | catalogue des messages (type, format **JSON, XML, CSV ou TXT**, élément racine, champs et chemins, champs indexés) ; flux = usage ordonné des messages entre acteurs | — |
 | **Workflow BPMN** | ajuster le processus généré dans l'éditeur bpmn-js, ou l'exporter vers **Camunda Modeler**, le modifier, le réimporter | Single Window Agent (Process Design) : génère le BPMN et propose les statuts manquants |
 | **Règles DRL** | règles de validation métier (agenda-group `validation`), frais (agenda-group `frais`, généré), banc d'essai Drools | Rules Agent : régénère frais et pièces conditionnelles, signale les règles de gestion sans règle DRL |
-| **Agents IA** | joindre la SFD (.docx ou .txt), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
+| **Agents IA** | joindre la SFD (.docx ou .txt) **et ses diagrammes** (.drawio, .bpmn — sélection multiple), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
 | **Contrôles et publication** | lever les erreurs du Compliance Agent, soumettre, faire approuver, publier | Compliance Agent |
 
 Rien n'est appliqué sans revue humaine : les agents sont plafonnés au niveau L2 (proposer) ; soumettre, approuver et
 publier sont réservés à l'humain, et une telle demande faite aux agents est refusée et journalisée (AC-AG-01).
+
+### Partir d'une SFD et de ses diagrammes (ex. domiciliation bancaire)
+
+Les figures BPMN d'une SFD sont des images : les agents ne lisent pas les images, mais leurs **sources draw.io** (ou un
+export BPMN 2.0). Joignez-les avec la SFD :
+
+| Ce que la SFD contient | Ce que proposent les agents |
+|---|---|
+| tableaux (composition du dossier, délais et coûts, acteurs, règles de gestion) | pièces, frais, délai, acteurs, règles (Document Agent) |
+| **pas de modèle de données**, mais des scénarios « l'opérateur renseigne le numéro de circuit et de la DI… », « l'agent saisit la référence (exactement 5 caractères) et la date… » | sections et **champs** typés (longueur, format), codes en anglais pour le rapprochement SCRDM ; champs saisis par le demandeur → section `DEMANDE`, par l'organisme instructeur → section **`INSTRUCTION`** ; identification du demandeur et lieu de traitement (ex. banque domiciliataire) si la version ne les a pas |
+| options « sélectionne « Domiciliation des biens » » ; modification, annulation décrites | **types de demande** (code CUR proposé) et natures (INITIAL, AMENDMENT, CANCELLATION) |
+| diagrammes draw.io (plusieurs fichiers ou pages) | **import du diagramme principal** (le plus complet ; un `.bpmn` fourni est prioritaire), tracé et couloirs conservés, rendu exécutable ; les autres diagrammes sont signalés |
+
+Règles de l'import d'un diagramme :
+
+- **couloirs** : celui du demandeur (importateur, opérateur, CAD…) → tâche initiale réalisée dans eFORCE, tâches suivantes =
+  tâches du demandeur (complément) ; celui de l'organisme qui décide (sa tâche précède une décision accord / rejet /
+  complément) → tâches de l'agent coté, précédées d'une **cotation** ; autres couloirs (douane, SGS, trésor) → étapes de
+  passage signalées (intégration à prévoir) ;
+- **décisions** : les libellés des sorties d'une passerelle deviennent les décisions de la tâche qui la précède
+  (accord → VALIDER, rejet → REJETER, complément → COMPLEMENT ; sinon le premier mot : « oui — apuré » → OUI) ; une
+  passerelle sans décision à plusieurs sorties est un embranchement parallèle ;
+- **documents** : attestation, certificat, autorisation… → délivrance d'un **livrable** (un par document, code document
+  distinct : `CUR` + `ADO`, `AAP`…) ; autres documents → événements ;
+- **fins** : statut du dossier tiré du chemin (rejet) ou du libellé (« Dossier clôturé / apuré » → statut final propre) ;
+  un document délivré alors que le processus continue pose un statut non final ;
+- **saisies de l'agent** : une fois les champs `INSTRUCTION` acceptés, relancez le Process Agent avec le diagramme : chaque
+  champ est affecté à la tâche de l'organisme instructeur dont le libellé lui ressemble le plus (propriété `fields`) —
+  à vérifier dans l'éditeur BPMN.
 
 ## 4. Publier
 
@@ -105,7 +134,17 @@ les **nouveaux** dossiers suivent la nouvelle version ; les dossiers en cours **
 
 Tâches humaines : `camunda:assignee` = `${agentTraitement}`, `${signataire}` ou `${demandeur}` ;
 `camunda:formKey` = `nexora:traitement`, `nexora:signature` ou `nexora:complement` ; propriété `decisions` (ex.
-`COMPLEMENT,VALIDER,REJETER`) ; la décision est posée dans la variable `decision` (ou `decisionSignataire`).
+`COMPLEMENT,VALIDER,REJETER`, ou des décisions propres comme `OUI,NON`) ; la décision est posée dans la variable
+`decision` (ou `decisionSignataire`). Propriété `fields` d'une tâche `nexora:traitement` (ex.
+`domiciliationReference,domiciliationDate`) : champs de la section **`INSTRUCTION`** que l'agent doit renseigner pour une
+décision favorable (les autres champs de cette section restent facultatifs ; format contrôlé dans tous les cas).
+
+### Section `INSTRUCTION`
+
+Données saisies par l'organisme instructeur pendant le traitement (référence et date de domiciliation, transferts…) :
+absentes du formulaire du demandeur et ignorées au dépôt ; affichées dans le panneau de décision de l'agent ; le
+demandeur ne peut pas les modifier ; chaque saisie est journalisée (`DONNEES_INSTRUCTION`). Elles alimentent les vues
+métier `proc_<code>` et les messages comme les autres champs.
 Message BPMN corrélé par le Runtime : `PAIEMENT_CONFIRME` (clé métier = CUR). Variables disponibles : `dossierId`,
 `dossierNo`, `procedure`, `typeDemande`, `nature`, `demandeur`, `delaiPaiement`.
 
@@ -133,7 +172,8 @@ Chemins : `$.a.b`, `$.liste[*].x` (JSON) ; `Racine/a/b` (XML) ; nom de colonne (
 
 ### Ce qui demande du développement
 
-- un nouveau type de tâche automatique (délégué) ou d'intégration externe (douane, système portuaire…) ;
+- un nouveau type de tâche automatique (délégué) ou d'intégration externe (douane, système portuaire…) — dans un
+  diagramme importé, les tâches des couloirs partenaires sont franchies sans attente en attendant cette intégration ;
 - un traitement métier d'un message entrant autre que la confirmation de paiement ;
 - une mise en page de livrable au-delà des réglages (en-têtes, mention, champs imprimés) ;
 - l'isolation multi-tenant par Row-Level Security (colonnes `tenant_id` présentes, politiques à activer).

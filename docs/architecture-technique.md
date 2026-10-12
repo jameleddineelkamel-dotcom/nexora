@@ -343,11 +343,11 @@ L'empreinte est calculée par PostgreSQL au moment de la publication (`sha256(pa
 
 ```mermaid
 flowchart LR
-  SFD[SFD .docx / .txt] --> O{AI Orchestrator}
-  O --> D[Document Agent<br/>acteurs, pièces, frais,<br/>délais, règles de gestion]
+  SFD[SFD .docx / .txt<br/>+ diagrammes .drawio / .bpmn] --> O{AI Orchestrator}
+  O --> D[Document Agent<br/>acteurs, pièces, frais, délais,<br/>règles, sections, champs,<br/>types de demande]
   D --> DA[Data Agent<br/>chemins BIE SCRDM,<br/>listes REF_*]
   DA --> R[Rules Agent<br/>DRL frais / pièces<br/>conditionnelles]
-  R --> P[Process Agent<br/>BPMN + diagramme,<br/>statuts manquants]
+  R --> P[Process Agent<br/>import du diagramme joint<br/>ou BPMN standard ;<br/>livrables, statuts]
   P --> C[Compliance Agent<br/>contrôles bloquants]
   D & DA & R & P & C --> PR[(ai_proposal)]
   PR --> H{Revue humaine<br/>accepter · corriger · rejeter}
@@ -356,7 +356,10 @@ flowchart LR
 
 - Chaque exécution est tracée dans `studio.ai_run` (agent, action, décision de politique, statut, résumé) ; chaque
   proposition dans `studio.ai_proposal` (type, charge utile, confiance, statut, revue).
-- Types de proposition : `FIELD_MAPPING`, `REFDATA`, `DOCUMENT`, `FEE`, `ACTOR`, `STATUS`, `DRL`, `BPMN`…
+- Types de proposition : `SECTION`, `FIELD`, `REQUEST_TYPE`, `FIELD_MAPPING`, `REFDATA`, `DOCUMENT`, `FEE`, `ACTOR`,
+  `STATUS`, `DELIVERABLE`, `BUSINESS_RULE`, `SETTING`, `DRL`, `BPMN` (appliqués à la revue) ; `FINDING`, `REPORT` (informatifs).
+- Fichiers joints : `POST /versions/{id}/agents/{code}/run` en multipart accepte plusieurs `file` ; les `.docx`, `.txt`,
+  `.md` forment le texte source, les `.drawio`, `.bpmn`, `.xml` les diagrammes (`Agents.Diagramme`).
 - Revue en masse possible par type et seuil de confiance (`/proposals/accept-all`).
 - **Coupe-circuit** : un agent peut être désactivé à chaud (`PUT /agents/{code}/enabled`, AC-AG-06).
 
@@ -374,10 +377,53 @@ Terminologie GUCE renseignée, listes `REF_*` existantes dans le Référentiel C
 flux sans message, messages sans champ, BPMN illisible ou délégué inconnu, statut référencé mais non déclaré, DRL qui
 ne compile pas. Une erreur bloque la soumission.
 
-### 7.4 Modèle de langage
+### 7.4 Données et diagrammes tirés de la SFD
 
-L'interface `ModeleLangage` prévoit le branchement d'un LLM ; il n'est pas implémenté : les agents fonctionnent par
-analyse documentaire (`TexteSource` lit le .docx), correspondance terminologique avec le SCRDM et génération déterministe.
+| Composant | Rôle |
+|---|---|
+| `TexteSource` | lecture du .docx (paragraphes et tableaux) |
+| `DonneesSfd` | champs tirés des scénarios des cas d'utilisation (verbes de saisie, énumérations, contraintes « exactement N caractères »), mot de tête → type (numéro, date, année, montant, devise…), code anglais en camelCase ; section `DEMANDE` ou `INSTRUCTION` selon l'acteur principal du cas d'utilisation ; options proposées → types de demande ; socle d'exécution (NIU, raison sociale, lieu de traitement) |
+| `DrawioSource` | lecture d'un fichier draw.io, y compris compressé (couloirs, événements, tâches, passerelles, documents, flux, positions) ; XML sécurisé (pas de DTD) |
+| `ImportDiagrammes` | choix du diagramme principal (BPMN 2.0 fourni, sinon le draw.io le plus complet), signalement des autres, propositions BPMN, livrables et statuts |
+| `BpmnImport` | conversion draw.io → BPMN 2.0 exécutable avec couloirs (collaboration et `laneSet`) et coordonnées d'origine (règles en §8.2 et dans [ajouter-une-procedure.md](ajouter-une-procedure.md#partir-dune-sfd-et-de-ses-diagrammes-ex-domiciliation-bancaire)) |
+
+Validé sur la domiciliation bancaire : SFD v1.1 sans modèle de données et diagrammes BPMN1-3 → 22 champs, 2 types de
+demande, workflow du cycle complet (instruction, émission, transferts SWIFT, apurement), 3 livrables, statuts propres ;
+dossier exécuté jusqu'aux attestations de domiciliation et d'apurement.
+
+### 7.5 Modèle de langage
+
+Les agents peuvent s'appuyer sur un **modèle de langage auto-hébergé** (souveraineté : aucune donnée ne quitte
+l'infrastructure choisie). `ModeleLangage` est un client de l'API compatible OpenAI `POST /v1/chat/completions`
+(Ollama, vLLM, LM Studio, llama.cpp, TGI), en `java.net.http`, température 0, réponse JSON (`response_format`
+`json_object`, abandonné automatiquement si le serveur le refuse).
+
+| Réglage (`.env.local`) | Rôle | Défaut |
+|---|---|---|
+| `NEXORA_AI_URL` | base de l'API, ex. `http://localhost:11434/v1` (Ollama) | vide → pas de modèle |
+| `NEXORA_AI_MODEL` | nom du modèle sur le serveur, ex. `qwen2.5:7b` | vide → pas de modèle |
+| `NEXORA_AI_API_KEY` | jeton `Bearer` si le serveur en exige un | vide |
+| `NEXORA_AI_TIMEOUT` | délai maximal d'un appel (ISO 8601) | `PT300S` |
+| `NEXORA_AI_MAX_CHARS` | taille des morceaux de SFD envoyés au modèle | 20 000 |
+
+| Agent | Rôle du modèle | Validation par le code |
+|---|---|---|
+| Orchestrator | choisit les agents utiles d'après l'objectif | codes restreints à la séquence connue, ordre imposé, conformité toujours incluse ; le refus de soumettre / approuver / publier reste une règle déterministe |
+| Document Agent | extrait de la SFD (par morceaux) acteurs, pièces, frais, délais, règles de gestion, chacun avec une citation | la citation doit figurer dans le document (à la ponctuation et aux accents près), le montant ou le délai dans la citation ; doublons et éléments existants ignorés ; sinon l'élément est écarté et compté |
+| Data Agent | départage les rapprochements SCRDM incertains (score < 0,75 ou deux candidats proches), par lots de 8 champs | choix limité aux 5 candidats heuristiques ; « aucun » écarte la proposition ; toute autre réponse est ignorée |
+| Rules, Process, Compliance | — (génération et contrôles déterministes) | — |
+
+Garanties : les propositions du modèle portent une confiance plafonnée (0,6 à 0,85) et la mention du modèle dans leur
+justification ; elles suivent la même revue humaine que les autres. Le document et l'objectif sont transmis comme
+données délimitées, jamais comme consignes. Si le serveur est absent ou répond mal, l'agent continue en heuristique et
+le signale (« modèle injoignable »). Chaque exécution (`studio.ai_run`) enregistre le modèle, le nombre d'appels et
+d'échecs, la durée cumulée et l'**empreinte SHA-256 des réponses** (`llm_calls`, `llm_failures`, `llm_millis`,
+`output_hash`, migration `V3__modele_heberge.sql`). L'état du serveur (joignable, modèle installé) est exposé par
+`GET /api/v1/agents`.
+
+Dimensionnement indicatif : un modèle de 7–8 milliards de paramètres quantifié (≈ 5 Go) tourne sur processeur avec
+16–32 Go de RAM, lentement (plusieurs minutes pour une SFD) ; un GPU de 8 Go ou plus le rend interactif ; vLLM sur GPU
+est recommandé en production.
 
 ---
 
@@ -431,6 +477,13 @@ flowchart LR
 ```
 
 - Les **statuts** du dossier sont posés par `${statut}` (tâche ou écouteur `start`).
+- Un workflow **importé d'un diagramme** suit le même contrat (cotation avant la première tâche de l'organisme
+  instructeur, délégués `delivrance` et `statut`) ; il peut comporter des décisions propres (`OUI,NON`), plusieurs
+  livrables et des embranchements parallèles. Les tâches des couloirs partenaires sont des `bpmn:task` franchies sans
+  attente (alerte de conformité).
+- **Données d'instruction** : section `INSTRUCTION` du formulaire, saisie par l'agent dans sa tâche de traitement
+  (`TacheService` → `DossierService.instruire`), exigée pour une décision favorable si la tâche la déclare dans sa
+  propriété `fields` ; absente du formulaire du demandeur et non modifiable par lui.
 - Délégués Spring en portée `prototype` : les champs `camunda:field` (`Expression`) sont propres à chaque appel.
 - Tâches humaines : `camunda:assignee` = `${agentTraitement}`, `${signataire}`, `${demandeur}` ; `camunda:formKey` =
   `nexora:traitement` | `nexora:signature` | `nexora:complement` ; propriété `decisions` ; variable `decision`.
@@ -726,7 +779,7 @@ déployée et exécutée jusqu'au livrable (`CM2026COR000001`) sans modification
 | Sujet | État | Évolution proposée |
 |---|---|---|
 | Multi-tenant | colonnes `tenant_id` présentes, cloisonnement applicatif | activer la Row-Level Security PostgreSQL |
-| LLM | interface `ModeleLangage` sans implémentation | brancher un modèle (extraction SFD, propositions), toujours sous revue humaine |
+| Modèle de langage | auto-hébergé (API compatible OpenAI) pour l'orchestrateur, le Document Agent et le Data Agent ; appels synchrones dans la transaction de l'exécution | exécution asynchrone des agents (file de tâches) pour les SFD longues ; génération DRL assistée par le modèle avec banc d'essai |
 | Signature | cachet HMAC visible | signature électronique qualifiée (PAdES) via une IGC |
 | Transport des messages | API REST synchrone | bus de messages / AS4 pour les partenaires externes, accusés `OUT_ACKED` |
 | Partitions de messages | partition par défaut | création automatique des partitions mensuelles et archivage |
@@ -801,3 +854,4 @@ Toutes les routes sont préfixées par `/api/v1` sauf mention contraire.
 | ADR-06 | **Agents plafonnés à la proposition** | Responsabilité humaine sur la réglementation, auditabilité | application automatique des propositions |
 | ADR-07 | **Propagation du jeton utilisateur** entre services | Droits vérifiés par chaque service, traçabilité de l'auteur réel | compte technique partagé |
 | ADR-08 | **JdbcClient + SQL explicite** | Maîtrise des requêtes JSONB / GIN / partitions PostgreSQL 17 | JPA/Hibernate |
+| ADR-09 | **Modèle de langage auto-hébergé, API compatible OpenAI**, validé par le code | Souveraineté des données ; indépendance vis-à-vis du serveur (Ollama, vLLM…) et du modèle ; les sorties du modèle sont vérifiées (citations, candidats) et restent des propositions | API d'un fournisseur en nuage ; SDK propre à un serveur |

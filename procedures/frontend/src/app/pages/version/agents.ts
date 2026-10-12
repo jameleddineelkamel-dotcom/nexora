@@ -23,7 +23,8 @@ import { Icon } from '../../shared/icon';
           <option value="ORCHESTRATEUR">{{ 'AI Orchestrator — séquence complète' | t }}</option>
           @for (a of agents(); track a.code) { @if (a.code !== 'ORCHESTRATEUR') { <option [value]="a.code" [disabled]="!a.enabled">{{ a.labelFr }}@if (!a.enabled) { ({{ 'désactivé' | t }}) }</option> } }
         </select></div>
-        <div class="field"><label for="sfd">{{ 'SFD ou texte réglementaire (.docx, .txt)' | t }}</label><input id="sfd" type="file" class="input" accept=".docx,.txt,.md" (change)="fichier.set($any($event.target).files?.[0] ?? null)" /></div>
+        <div class="field"><label for="sfd">{{ 'SFD et diagrammes (.docx, .txt, .drawio, .bpmn)' | t }}</label><input id="sfd" type="file" class="input" multiple accept=".docx,.txt,.md,.drawio,.bpmn,.xml" (change)="fichiers.set($any([...($any($event.target).files ?? [])]))" />
+          @if (fichiers().length) { <small class="muted">{{ fichiers().length }} {{ 'fichier(s)' | t }} : {{ noms() }}</small> }</div>
         <div class="field full"><label for="ob">{{ 'Objectif' | t }}</label><input id="ob" class="input" [value]="objectif()" (input)="objectif.set($any($event.target).value)" [placeholder]="'Ex. Modéliser la procédure à partir de la SFD jointe' | t" /></div>
       </div>
       <div class="row"><button class="btn primary" (click)="lancer()" [disabled]="occupe()"><nx-icon name="sparkles" /> {{ (occupe() ? 'Exécution…' : 'Exécuter') | t }}</button>
@@ -98,7 +99,8 @@ export class OngletAgents {
   protected readonly modele = signal('heuristique');
   protected readonly agent = signal('ORCHESTRATEUR');
   protected readonly objectif = signal('');
-  protected readonly fichier = signal<File | null>(null);
+  protected readonly fichiers = signal<File[]>([]);
+  protected readonly noms = computed(() => this.fichiers().map(f => f.name).join(', '));
   protected readonly propositions = signal<Proposition[]>([]);
   protected readonly executions = signal<Execution[]>([]);
   protected readonly filtre = signal('');
@@ -127,7 +129,7 @@ export class OngletAgents {
   protected lancer(): void {
     this.occupe.set(true);
     this.erreur.set(null);
-    this.api.executer(this.v().version.id, this.agent(), this.objectif(), this.fichier()).subscribe({
+    this.api.executer(this.v().version.id, this.agent(), this.objectif(), this.fichiers()).subscribe({
       next: () => { this.occupe.set(false); this.charger(); },
       error: e => { this.occupe.set(false); this.erreur.set(erreurs(e).join(' ')); },
     });

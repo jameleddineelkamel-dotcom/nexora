@@ -43,7 +43,26 @@ ajout seul). Une version publiée est immuable (déclencheur) ; l'approbateur di
 | Single Window Agent — Rules | génère les sections DRL « frais » et « pièces conditionnelles », signale les RG sans règle |
 | Compliance Agent | contrôles bloquants avant soumission et publication |
 
-Sans clé d'API (`ANTHROPIC_API_KEY` dans `.env.local`), les agents fonctionnent en mode heuristique déterministe.
+### Modèle de langage auto-hébergé (facultatif)
+
+L'orchestrateur, le Document Agent et le Data Agent peuvent s'appuyer sur un modèle hébergé chez vous, via l'API
+compatible OpenAI (Ollama, vLLM, LM Studio, llama.cpp, TGI). Exemple avec [Ollama](https://ollama.com) :
+
+```
+ollama pull qwen2.5:7b
+```
+
+puis, dans `procedures\.env.local` :
+
+```
+NEXORA_AI_URL=http://localhost:11434/v1
+NEXORA_AI_MODEL=qwen2.5:7b
+```
+
+et redémarrer le studio. **Studio › Agents IA** affiche le modèle utilisé. Les réponses du modèle sont vérifiées par le
+code (citation présente dans la SFD, choix parmi des candidats connus) puis soumises à la revue humaine ; chaque
+exécution trace le nombre d'appels, leur durée et l'empreinte des réponses. Sans configuration, ou si le serveur ne
+répond pas, les agents fonctionnent en mode heuristique déterministe. Détails : [architecture technique §7.5](../docs/architecture-technique.md#75-modèle-de-langage).
 
 ## API principale (`/api/v1`)
 

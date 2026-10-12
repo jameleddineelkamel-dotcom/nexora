@@ -39,6 +39,12 @@ public class Validation {
         public boolean valide() { return erreurs.isEmpty(); }
     }
 
+    /**
+     * Section des données saisies par l'organisme instructeur pendant le traitement (ex. référence et date de
+     * domiciliation) : absente du formulaire du demandeur, ignorée au dépôt, renseignée dans la tâche de traitement.
+     */
+    public static final String INSTRUCTION = "INSTRUCTION";
+
     /** Contrôles génériques du formulaire. {@code lieux} : codes des lieux de traitement actifs (liste dynamique « @LIEUX_TRAITEMENT »). */
     public List<Erreur> formulaire(Paquet p, String type, String nature, Map<String, Object> donnees, Set<String> pieces, Set<String> lieux) {
         List<Erreur> e = new ArrayList<>();
@@ -47,11 +53,11 @@ public class Validation {
         Set<String> repetees = new HashSet<>();
         p.sections().stream().filter(Paquet.Section::repeating).forEach(s -> repetees.add(s.code()));
         for (Paquet.Field f : p.fields()) {
-            if (repetees.contains(f.sectionCode())) continue;
+            if (repetees.contains(f.sectionCode()) || INSTRUCTION.equals(f.sectionCode())) continue;
             controler(f, donnees.get(f.code()), e, null, lieux, liste);
         }
         for (Paquet.Section s : p.sections()) {
-            if (!s.repeating()) continue;
+            if (!s.repeating() || INSTRUCTION.equals(s.code())) continue;
             List<?> lignes = donnees.get(s.code()) instanceof List<?> l ? l : List.of();
             if (lignes.size() < s.minRows())
                 e.add(new Erreur(s.code(), "« " + s.labelFr() + " » : au moins " + s.minRows() + " ligne(s) attendue(s).", null));
@@ -66,6 +72,26 @@ public class Validation {
             if (!d.mandatory()) continue;
             if (d.requestTypes() != null && !d.requestTypes().isEmpty() && !d.requestTypes().contains(type)) continue;
             if (!pieces.contains(d.code())) e.add(new Erreur(d.code(), "Pièce obligatoire manquante : " + d.code() + " — " + d.labelFr() + ".", null));
+        }
+        return e;
+    }
+
+    /**
+     * Données saisies par l'agent dans une tâche de traitement : format de chaque champ de la section INSTRUCTION
+     * renseigné ; les champs déclarés par la tâche (propriété BPMN « fields ») sont obligatoires si {@code exiger}.
+     */
+    public List<Erreur> instruction(Paquet p, Map<String, Object> donnees, Collection<String> attendus, boolean exiger) {
+        List<Erreur> e = new ArrayList<>();
+        Map<String, Optional<Set<String>>> codes = new HashMap<>();
+        java.util.function.Function<String, Optional<Set<String>>> liste = t -> codes.computeIfAbsent(t, listes::codes);
+        for (Paquet.Field f : p.champsDe(INSTRUCTION)) {
+            Object v = donnees.get(f.code());
+            boolean vide = v == null || String.valueOf(v).isBlank();
+            if (vide) {
+                if (exiger && attendus.contains(f.code())) e.add(new Erreur(f.code(), "« " + f.labelFr() + " » est obligatoire.", null));
+                continue;
+            }
+            controler(f, v, e, null, Set.of(), liste);
         }
         return e;
     }

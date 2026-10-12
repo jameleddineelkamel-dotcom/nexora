@@ -54,6 +54,11 @@ import { MessageDrawer } from './message-drawer';
               } @else {
                 <p class="muted small">{{ 'Vérifiez la conformité documentaire puis décidez. L\\'observation est transmise au demandeur.' | t }}</p>
               }
+              @if (t.formKey?.endsWith(':traitement') && formInstruction(); as fi) {
+                <div class="instruction"><h3>{{ 'Données d'instruction' | t }}</h3>
+                  <p class="muted small">{{ 'Données saisies par l'organisme instructeur ; celles marquées * sont exigées pour une décision favorable.' | t }}</p>
+                  <nx-formulaire [form]="fi" [donnees]="instruction()" [erreurs]="[]" (modification)="instruction.set($event)" /></div>
+              }
               <div class="field"><label for="obs">{{ 'Observation' | t }}</label>
                 <textarea id="obs" class="input" [value]="observation()" (input)="observation.set($any($event.target).value)"></textarea></div>
               <div class="row">
@@ -69,7 +74,7 @@ import { MessageDrawer } from './message-drawer';
             <div class="card-title"><nx-icon name="file" /><h2>{{ 'Formulaire' | t }}</h2>
               @if (x.dossier.requestNature === 'AMENDMENT') { <span class="chip warn">{{ 'Valeurs modifiées surlignées' | t }}</span> }</div>
             <nx-formulaire [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature"
-              [lectureSeule]="!x.canEdit" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)" />
+              [lectureSeule]="!x.canEdit" [sectionsMasquees]="x.canEdit ? ['INSTRUCTION'] : []" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)" />
             @if (x.canEdit && !brouillon()) {
               <div class="row"><button class="btn" (click)="sauver()" [disabled]="occupe()"><nx-icon name="save" /> {{ 'Enregistrer les compléments' | t }}</button></div>
             }
@@ -260,6 +265,15 @@ export class DossierPage {
   protected readonly paiement = signal<AvisPaiement | null>(null);
   protected readonly messageOuvert = signal<Message | null>(null);
   protected readonly observation = signal('');
+  /** Données d'instruction saisies dans la tâche de traitement (section INSTRUCTION). */
+  protected readonly instruction = signal<Record<string, unknown>>({});
+  protected readonly formInstruction = computed(() => {
+    const x = this.d(), t = this.maTache();
+    if (!x || !t) return null;
+    const champs = x.form.fields.filter(f => f.sectionCode === 'INSTRUCTION')
+      .map(f => (t.fields ?? []).includes(f.code) ? { ...f, mandatory: 'OUI' as const } : { ...f, mandatory: 'NON' as const });
+    return champs.length ? { ...x.form, sections: x.form.sections.filter(s => s.code === 'INSTRUCTION'), fields: champs } : null;
+  });
   protected readonly banque = signal('BICEC');
   protected readonly occupe = signal(false);
   protected readonly erreur = signal<string | null>(null);
@@ -285,7 +299,7 @@ export class DossierPage {
 
   protected charger(): void {
     this.api.dossier(this.id()).subscribe({
-      next: x => { this.d.set(x); this.donnees.set({ ...x.dossier.formData }); this.modifie.set(false); },
+      next: x => { this.d.set(x); this.donnees.set({ ...x.dossier.formData }); this.instruction.set({ ...x.dossier.formData }); this.modifie.set(false); },
       error: e => this.erreur.set(erreurs(e, 'Le service eservices').join('\n')),
     });
   }
@@ -313,11 +327,11 @@ export class DossierPage {
   }
 
   protected libelleDecision(d: string): string {
-    return ({ COMPLEMENT: 'Demander un complément', VALIDER: 'Valider', REJETER: 'Rejeter', RETOUR: 'Retourner pour réexamen', SOUMETTRE: 'Renvoyer le dossier complété' } as Record<string, string>)[d] ?? d;
+    return ({ COMPLEMENT: 'Demander un complément', VALIDER: 'Valider', REJETER: 'Rejeter', RETOUR: 'Retourner pour réexamen', SOUMETTRE: 'Renvoyer le dossier complété', OUI: 'Oui', NON: 'Non' } as Record<string, string>)[d] ?? d;
   }
 
   protected icone(d: string): string {
-    return ({ COMPLEMENT: 'mail', VALIDER: 'check', REJETER: 'ban', RETOUR: 'back', SOUMETTRE: 'send' } as Record<string, string>)[d] ?? 'chevron';
+    return ({ COMPLEMENT: 'mail', VALIDER: 'check', REJETER: 'ban', RETOUR: 'back', SOUMETTRE: 'send', OUI: 'check', NON: 'ban' } as Record<string, string>)[d] ?? 'chevron';
   }
 
   private echec(e: unknown): void {
@@ -376,7 +390,7 @@ export class DossierPage {
 
   protected decider(t: Tache, decision: string): void {
     const complement = t.formKey?.endsWith(':complement');
-    const lancer = () => this.api.completer(t.id, { decision, observation: this.observation(), data: complement ? this.donnees() : undefined }).subscribe({
+    const lancer = () => this.api.completer(t.id, { decision, observation: this.observation(), data: complement ? this.donnees() : t.formKey?.endsWith(':traitement') ? this.instruction() : undefined }).subscribe({
       next: () => { this.occupe.set(false); this.observation.set(''); this.info.set(this.i18n.t('Décision enregistrée : {0}.', this.i18n.t(this.libelleDecision(decision)))); setTimeout(() => this.charger(), 600); },
       error: e => this.echec(e),
     });

@@ -137,6 +137,43 @@ public class RevueService {
                 s.put(texte(p, "key"), p.get("value"));
                 repo.parametres(id, new Parametres(s, v.changeNote()), auteur);
             }
+            case "SECTION" -> {
+                List<Section> l = new ArrayList<>(repo.sections(id).stream().filter(s -> !s.code().equals(texte(p, "code"))).toList());
+                l.add(new Section(texte(p, "code"), texte(p, "labelFr"), texte(p, "labelEn"), Boolean.TRUE.equals(p.get("repeating")),
+                        entier(p, "minRows"), entier(p, "sortOrder")));
+                l.sort(Comparator.comparingInt(Section::sortOrder));
+                repo.formulaire(id, l, repo.champs(id));
+            }
+            case "FIELD" -> {
+                List<Section> sections = new ArrayList<>(repo.sections(id));
+                String section = texte(p, "sectionCode");
+                if (sections.stream().noneMatch(s -> s.code().equals(section))) {
+                    // La section citée par le champ est créée avec lui
+                    int ordre = sections.stream().mapToInt(Section::sortOrder).max().orElse(0) + 10;
+                    sections.add(new Section(section, Objects.toString(p.get("sectionLabelFr"), section), null, false, 0, ordre));
+                }
+                List<Field> champs = new ArrayList<>(repo.champs(id).stream().filter(f -> !f.code().equals(texte(p, "code"))).toList());
+                champs.add(new Field(texte(p, "code"), section, texte(p, "labelFr"), texte(p, "labelEn"), Objects.toString(p.get("dataType"), "TEXT"),
+                        p.get("maxLength") == null ? null : entier(p, "maxLength"), texte(p, "pattern"), Objects.toString(p.get("mandatory"), "NON"),
+                        texte(p, "conditionText"), texte(p, "refdataTable"), null, texte(p, "untdedRef"), null, texte(p, "cclDen"), null, null,
+                        Boolean.TRUE.equals(p.get("searchable")), texte(p, "prefill"), !Boolean.FALSE.equals(p.get("amendable")), texte(p, "helpFr"), null,
+                        entier(p, "sortOrder")));
+                repo.formulaire(id, sections, champs);
+            }
+            case "REQUEST_TYPE" -> {
+                List<RequestType> l = new ArrayList<>(repo.typesDemande(id).stream().filter(t -> !t.code().equals(texte(p, "code"))).toList());
+                l.add(new RequestType(texte(p, "code"), texte(p, "labelFr"), texte(p, "labelEn"), texte(p, "curCode"),
+                        (List<String>) p.getOrDefault("natures", List.of("INITIAL")), texte(p, "description"), entier(p, "sortOrder")));
+                l.sort(Comparator.comparingInt(RequestType::sortOrder));
+                repo.typesDemande(id, l);
+            }
+            case "DELIVERABLE" -> {
+                List<Deliverable> l = new ArrayList<>(repo.livrables(id).stream().filter(d -> !d.code().equals(texte(p, "code"))).toList());
+                l.add(new Deliverable(texte(p, "code"), texte(p, "labelFr"), texte(p, "labelEn"), Objects.toString(p.get("docCode"), "DOC"),
+                        Objects.toString(p.get("validityRule"), "AUCUNE"), texte(p, "titleFr"), (List<String>) p.getOrDefault("bodyFields", List.of()),
+                        texte(p, "signatureNote")));
+                repo.livrables(id, l);
+            }
             default -> throw ProceduresException.invalide("Type de proposition non applicable : " + kind);
         }
     }

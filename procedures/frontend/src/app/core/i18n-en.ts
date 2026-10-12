@@ -78,7 +78,7 @@ export const EN: Record<string, string> = {
   'Règles de gestion (RG / RM)': 'Business rules (RG / RM)', 'Règles déclenchées': 'Fired rules', 'Référence normative': 'Standard reference', 'Référentiel Commun': 'Common Reference Data',
   'Référentiels': 'References', "Réglages d'exécution": 'Runtime settings', 'Réponse au rang': 'Reply to rank', 'Répétitif': 'Repeating', 'Résultat': 'Result', 'Rôle SSO': 'SSO role',
   "Rôles des organismes dans la procédure ; le rôle SSO relie l'acteur aux comptes qui l'incarnent.": 'Roles of organisations in the procedure; the SSO role links the actor to the accounts acting for it.',
-  'SFD ou texte réglementaire (.docx, .txt)': 'FSD or regulatory text (.docx, .txt)', 'Se déconnecter': 'Sign out', 'Section': 'Section', 'Sections': 'Sections', 'Sensibilité': 'Sensitivity',
+  'SFD ou texte réglementaire (.docx, .txt)': 'FSD or regulatory text (.docx, .txt)', 'SFD et diagrammes (.docx, .txt, .drawio, .bpmn)': 'FSD and diagrams (.docx, .txt, .drawio, .bpmn)', 'fichier(s)': 'file(s)', 'Se déconnecter': 'Sign out', 'Section': 'Section', 'Sections': 'Sections', 'Sensibilité': 'Sensitivity',
   'Soumettre à revue': 'Submit for review', 'Soumise': 'Submitted', 'Source': 'Source', 'Statuts du dossier': 'Case statuses', 'Stratégie de cotation': 'Assignment strategy',
   'Studio des procédures': 'Procedure studio', 'Superviseur': 'Supervisor', 'Supprimer': 'Delete', 'Système': 'System',
   'Sélectionnez un flux pour éditer ses messages (émetteur, destinataire, rang, réponse, délai).': 'Select a flow to edit its messages (sender, recipient, rank, reply, timeout).',
@@ -97,4 +97,6 @@ export const EN: Record<string, string> = {
   '{0} / {1} champs': '{0} / {1} fields', '{0} ABIE, {1} BBIE, {2} ASBIE': '{0} ABIE, {1} BBIE, {2} ASBIE', '{0} alerte(s)': '{0} warning(s)', '{0} champ(s) relié(s) au SCRDM': '{0} field(s) linked to SCRDM',
   '{0} en revue': '{0} in review', '{0} erreur(s)': '{0} error(s)', '{0} exécutions': '{0} runs', '{0} information(s)': '{0} information item(s)', '{0} publiée(s)': '{0} published',
   'Élément racine': 'Root element', 'Émetteur': 'Sender', 'Agents IA ': 'AI agents', 'Revue': 'Review', 'Approbation': 'Approval', 'Publication': 'Publication', 'Déploiement': 'Deployment',
+  'Rechercher les propriétés': 'Search properties', 'Catalogue des ABIE': 'ABIE catalogue', 'Aucune propriété ne correspond.': 'No matching property.', 'ABIE': 'ABIE', 'Niveau': 'Level', 'racine': 'root', 'Chargement…': 'Loading…',
+  'Aucun ABIE ne correspond ; « Rechercher les propriétés » cherche aussi dans les BBIE et ASBIE.': 'No matching ABIE; “Search properties” also searches BBIEs and ASBIEs.',
 };

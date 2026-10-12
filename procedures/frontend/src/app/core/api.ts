@@ -97,10 +97,10 @@ export class Api {
 
   agents(): Observable<{ agents: AgentInfo[]; model: { available: boolean; model: string }; sequence: string[] }> { return this.http.get<never>(`${this.v1}/agents`); }
   activerAgent(code: string, enabled: boolean): Observable<AgentInfo[]> { return this.http.put<AgentInfo[]>(`${this.v1}/agents/${code}/enabled`, { enabled }); }
-  executer(id: number, agent: string, objective: string, fichier: File | null): Observable<{ runs: Execution[]; proposals: Proposition[] }> {
-    if (fichier) {
+  executer(id: number, agent: string, objective: string, fichiers: File[]): Observable<{ runs: Execution[]; proposals: Proposition[] }> {
+    if (fichiers.length) {
       const fd = new FormData();
-      fd.append('file', fichier);
+      fichiers.forEach(f => fd.append('file', f));
       if (objective) fd.append('objective', objective);
       return this.http.post<never>(`${this.v1}/versions/${id}/agents/${agent}/run`, fd);
     }
@@ -117,6 +117,7 @@ export class Api {
   }
 
   rdm(): Observable<{ family: string; release: string; abies: number; bbies: number; asbies: number; roots: Bie[] }> { return this.http.get<never>(`${this.v1}/rdm`); }
+  abies(): Observable<{ code: string; den: string; definition: string; depth: number; root: boolean }[]> { return this.http.get<never>(`${this.v1}/rdm/abies`); }
   rechercherBie(q: string, limit = 60): Observable<Bie[]> { return this.http.get<Bie[]>(`${this.v1}/rdm/search`, { params: params({ q, limit }) }); }
   abie(code: string): Observable<{ abie: { code: string; den: string; definition: string }; properties: Bie[]; paths: string[] }> { return this.http.get<never>(`${this.v1}/rdm/abies/${code}`); }
   resoudre(path: string): Observable<{ path: string; bie: Bie; denChain: string[] }> { return this.http.get<never>(`${this.v1}/rdm/resolve`, { params: params({ path }) }); }

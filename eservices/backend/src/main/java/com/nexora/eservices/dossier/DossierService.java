@@ -189,9 +189,35 @@ public class DossierService {
             p.fields().stream().filter(f -> !f.amendable()).forEach(f -> verrouilles.add(f.code()));
         verrouilles.add(p.reglage("applicantField", "taxIdentifier"));
         verrouilles.add(p.reglage("previousField", "previousRequestNumber"));
+        // Données d'instruction : saisies par l'organisme instructeur, jamais par le demandeur
+        p.champsDe(Validation.INSTRUCTION).forEach(f -> verrouilles.add(f.code()));
         donnees.forEach((k, v) -> { if (!verrouilles.contains(k)) fusion.put(k, v); });
         repo.donnees(id, fusion, null, null);
         return repo.parId(id).orElseThrow();
+    }
+
+    /**
+     * Données saisies par l'organisme instructeur dans sa tâche de traitement (section INSTRUCTION) : seuls ces champs
+     * sont modifiables ; formats contrôlés, champs déclarés par la tâche exigés pour une décision favorable. L'appelant
+     * (tâche assignée à l'agent) a déjà vérifié le droit de traiter le dossier.
+     */
+    @Transactional
+    public void instruire(UUID id, Map<String, Object> donnees, List<String> attendus, boolean exiger) {
+        Dossier d = repo.parId(id).orElseThrow(() -> EservicesException.introuvable("Dossier introuvable."));
+        Paquet p = paquet(d);
+        Set<String> autorises = new HashSet<>();
+        p.champsDe(Validation.INSTRUCTION).forEach(f -> autorises.add(f.code()));
+        if (autorises.isEmpty()) return;
+        Map<String, Object> fusion = new LinkedHashMap<>(d.formData());
+        donnees.forEach((k, v) -> { if (autorises.contains(k)) fusion.put(k, v); });
+        List<Validation.Erreur> erreurs = validation.instruction(p, fusion, attendus == null ? List.of() : attendus, exiger);
+        if (!erreurs.isEmpty())
+            throw EservicesException.invalide(String.join(" ", erreurs.stream().map(Validation.Erreur::message).toList()));
+        if (fusion.equals(d.formData())) return;
+        repo.donnees(id, fusion, null, null);
+        Map<String, Object> saisis = new LinkedHashMap<>();
+        donnees.forEach((k, v) -> { if (autorises.contains(k)) saisis.put(k, v); });
+        journal.tracer("DONNEES_INSTRUCTION", id, d.dossierNo(), Map.of("fields", saisis.keySet()));
     }
 
     // ------------------------------------------------------------------ pièces

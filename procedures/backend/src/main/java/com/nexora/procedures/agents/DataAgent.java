@@ -28,10 +28,28 @@ public class DataAgent implements Agent {
             Map.entry("locode", "REF_UNLOCODE"), Map.entry("documenttype", "REF_DOCUMENT_CODES"));
 
     private final RdmService rdm;
+    private final ModeleLangage llm;
 
-    public DataAgent(RdmService rdm) {
+    public DataAgent(RdmService rdm, ModeleLangage llm) {
         this.rdm = rdm;
+        this.llm = llm;
     }
+
+    /** Candidat de rapprochement : BBIE et score heuristique. */
+    record Candidat(RdmService.Bie bie, double score) {}
+
+    /** Arbitrage du modèle pour un champ : candidat retenu (ou aucun) et justification. */
+    record Arbitrage(Integer choix, String raison) {}
+
+    private static final int CANDIDATS = 5, LOT = 8;
+    /** En dessous de ce score, ou si deux candidats sont proches, le rapprochement est soumis au modèle. */
+    private static final double CERTAIN = 0.75, ECART = 0.1;
+
+    private static final String CONSIGNE = """
+            Tu es le Data Agent du studio NEXORA. Pour chaque champ de formulaire, choisis parmi les candidats fournis
+            l'élément du modèle de référence UN/CEFACT SCRDM D23B (BBIE) qui a le même sens métier, ou aucun si aucun ne convient.
+            Réponds uniquement par un objet JSON : {"choices":[{"field":"<code du champ>","choice":<numéro du candidat ou null>,"reason":"<justification courte en français>"}]}.
+            N'invente aucun candidat : « choice » est l'un des numéros proposés pour ce champ, ou null.""";
 
     @Override
     public String code() {
@@ -45,9 +63,14 @@ public class DataAgent implements Agent {
         List<RdmService.Bie> bbies = rdm.bbies();
         Map<String, String> contextes = contextes(v);
         int rapproches = 0;
+        // Candidats heuristiques de chaque champ non rapproché, puis arbitrage du modèle pour les cas incertains
+        Map<String, List<Candidat>> candidats = new LinkedHashMap<>();
+        for (Field f : v.fields())
+            if (f.biePath() == null || f.biePath().isBlank()) candidats.put(f.code(), candidats(f, bbies));
+        Map<String, Arbitrage> arbitrages = arbitrer(v, candidats);
         for (Field f : v.fields()) {
             if (f.biePath() == null || f.biePath().isBlank()) {
-                Optional<Proposition> p = rapprocher(f, bbies, contextes);
+                Optional<Proposition> p = rapprocher(f, candidats.get(f.code()), arbitrages.get(f.code()), contextes);
                 if (p.isPresent()) {
                     props.add(p.get());
                     rapproches++;
@@ -64,8 +87,78 @@ public class DataAgent implements Agent {
             }
         }
         long listes = props.stream().filter(p -> p.kind().equals("REFDATA")).count();
-        return Sortie.de(rapproches + " champ(s) rapproché(s) du SCRDM D23B, " + listes + " liste(s) de codes proposée(s) ; "
-                + v.fields().stream().filter(f -> f.biePath() != null && !f.biePath().isBlank()).count() + " champ(s) déjà rapproché(s).", props);
+        String resume = rapproches + " champ(s) rapproché(s) du SCRDM D23B, " + listes + " liste(s) de codes proposée(s) ; "
+                + v.fields().stream().filter(f -> f.biePath() != null && !f.biePath().isBlank()).count() + " champ(s) déjà rapproché(s).";
+        if (!llm.disponible()) return Sortie.de(resume, props);
+        return arbitrages.isEmpty() && candidats.values().stream().anyMatch(DataAgent::incertain)
+                ? new Sortie(resume + " Modèle " + llm.nom() + " injoignable : rapprochements heuristiques seuls.", props, "heuristique (modèle " + llm.nom() + " injoignable)")
+                : new Sortie(resume + " " + arbitrages.size() + " rapprochement(s) incertain(s) arbitré(s) par le modèle " + llm.nom() + ".", props,
+                        arbitrages.isEmpty() ? "heuristique" : llm.nom() + " + heuristique");
+    }
+
+    /** Les meilleurs BBIE pour un champ, par score décroissant. */
+    private List<Candidat> candidats(Field f, List<RdmService.Bie> bbies) {
+        Set<String> cible = jetons(f.cclDen() != null && !f.cclDen().isBlank() ? f.cclDen() : separerCamel(f.code()) + " " + f.labelFr());
+        Set<String> code = jetons(separerCamel(f.code()));
+        List<Candidat> l = new ArrayList<>();
+        for (RdmService.Bie b : bbies) {
+            double s = jaccard(cible, jetons(b.den()));
+            if (b.property().equalsIgnoreCase(f.code())) s += 0.45;
+            else s += 0.25 * jaccard(code, jetons(separerCamel(b.property())));
+            if (s >= 0.15) l.add(new Candidat(b, s));
+        }
+        l.sort(Comparator.comparingDouble(Candidat::score).reversed());
+        return l.size() > CANDIDATS ? List.copyOf(l.subList(0, CANDIDATS)) : l;
+    }
+
+    private static boolean incertain(List<Candidat> c) {
+        return !c.isEmpty() && (c.getFirst().score() < CERTAIN || c.size() > 1 && c.getFirst().score() - c.get(1).score() < ECART);
+    }
+
+    /** Soumet au modèle, par lots, les champs dont le rapprochement est incertain ; réponses restreintes aux candidats. */
+    private Map<String, Arbitrage> arbitrer(VersionComplete v, Map<String, List<Candidat>> candidats) {
+        Map<String, Arbitrage> r = new HashMap<>();
+        if (!llm.disponible()) return r;
+        Map<String, Field> champs = new HashMap<>();
+        v.fields().forEach(f -> champs.put(f.code(), f));
+        Map<String, String> sections = new HashMap<>();
+        v.sections().forEach(s -> sections.put(s.code(), s.labelFr()));
+        List<String> douteux = candidats.entrySet().stream().filter(e -> incertain(e.getValue())).map(Map.Entry::getKey).toList();
+        for (int i = 0; i < douteux.size(); i += LOT) {
+            StringBuilder q = new StringBuilder("Procédure : ").append(v.procedure().labelFr()).append("\n\n");
+            for (String code : douteux.subList(i, Math.min(douteux.size(), i + LOT))) {
+                Field f = champs.get(code);
+                q.append("Champ ").append(code).append(" — « ").append(f.labelFr()).append(" » (section « ")
+                        .append(sections.getOrDefault(f.sectionCode(), f.sectionCode())).append(" », type ").append(f.dataType()).append(")");
+                if (f.cclDen() != null && !f.cclDen().isBlank()) q.append(", DEN UN/CCL « ").append(f.cclDen()).append(" »");
+                q.append("\n");
+                List<Candidat> c = candidats.get(code);
+                for (int k = 0; k < c.size(); k++) {
+                    RdmService.Bie b = c.get(k).bie();
+                    String def = Objects.toString(b.definition(), "");
+                    q.append("  ").append(k + 1).append(". ").append(b.den()).append(" — ").append(def.length() > 160 ? def.substring(0, 160) + "…" : def).append("\n");
+                }
+                q.append("\n");
+            }
+            llm.json(CONSIGNE, q.toString()).ifPresent(rep -> {
+                if (!(rep.json().get("choices") instanceof List<?> l)) return;
+                for (Object o : l) {
+                    if (!(o instanceof Map<?, ?> m)) continue;
+                    String champ = Objects.toString(m.get("field"), "");
+                    List<Candidat> c = candidats.get(champ);
+                    if (c == null || !douteux.contains(champ)) continue;
+                    Integer choix = null;
+                    try {
+                        if (m.get("choice") != null) choix = (int) Double.parseDouble(String.valueOf(m.get("choice")));
+                    } catch (NumberFormatException e) {
+                        continue;
+                    }
+                    if (choix != null && (choix < 1 || choix > c.size())) continue;   // hors des candidats : ignoré
+                    r.put(champ, new Arbitrage(choix, Objects.toString(m.get("reason"), "").strip()));
+                }
+            });
+        }
+        return r;
     }
 
     /** Racine de contexte par section : réglage « bieContext » de la version, sinon émetteur du document / articles de la consignation. */
@@ -79,22 +172,22 @@ public class DataAgent implements Agent {
         return c;
     }
 
-    private Optional<Proposition> rapprocher(Field f, List<RdmService.Bie> bbies, Map<String, String> contextes) {
+    private Optional<Proposition> rapprocher(Field f, List<Candidat> candidats, Arbitrage arbitrage, Map<String, String> contextes) {
         Set<String> cible = jetons(f.cclDen() != null && !f.cclDen().isBlank() ? f.cclDen() : separerCamel(f.code()) + " " + f.labelFr());
-        Set<String> code = jetons(separerCamel(f.code()));
-        RdmService.Bie meilleur = null;
-        double score = 0;
-        for (RdmService.Bie b : bbies) {
-            Set<String> den = jetons(b.den());
-            double s = jaccard(cible, den);
-            if (b.property().equalsIgnoreCase(f.code())) s += 0.45;
-            else s += 0.25 * jaccard(code, jetons(separerCamel(b.property())));
-            if (s > score) {
-                score = s;
-                meilleur = b;
-            }
+        if (candidats == null || candidats.isEmpty()) return Optional.empty();
+        RdmService.Bie meilleur;
+        double score;
+        if (arbitrage != null) {
+            // Le modèle a départagé un cas incertain : « aucun » écarte la proposition
+            if (arbitrage.choix() == null) return Optional.empty();
+            Candidat c = candidats.get(arbitrage.choix() - 1);
+            meilleur = c.bie();
+            score = Math.max(0.6, Math.min(0.85, c.score()));
+        } else {
+            meilleur = candidats.getFirst().bie();
+            score = candidats.getFirst().score();
+            if (score < 0.4) return Optional.empty();
         }
-        if (meilleur == null || score < 0.4) return Optional.empty();
         String racine = contextes.getOrDefault(f.sectionCode(), contextes.get("default"));
         List<String> chemins = rdm.cheminsVers(meilleur.abie(), 6, 40);
         if (meilleur.abie().equals(RdmService.RACINE)) chemins = List.of("");
@@ -111,10 +204,15 @@ public class DataAgent implements Agent {
         payload.put("mappingType", exact ? "exact" : "close");
         payload.put("cardinality", meilleur.cardinality());
         payload.put("dataType", Objects.toString(meilleur.dataType(), ""));
-        return Optional.of(new Proposition("FIELD_MAPPING", f.code(), "« " + f.labelFr() + " » → " + meilleur.den(), payload,
-                "Correspondance " + (exact ? "exacte" : "proche") + " entre "
+        String justification = arbitrage != null
+                ? "Choix du modèle " + llm.nom() + " parmi " + candidats.size() + " candidats heuristiques" + (arbitrage.raison().isBlank() ? "" : " : " + arbitrage.raison().replaceAll("[.\s]+$", ""))
+                        + ". BBIE SCRDM « " + meilleur.den() + " » (" + meilleur.cardinality() + ")"
+                : "Correspondance " + (exact ? "exacte" : "proche") + " entre "
                         + (f.cclDen() != null ? "le DEN UN/CCL « " + f.cclDen() + " »" : "le nom du champ") + " et le BBIE SCRDM « " + meilleur.den()
-                        + " » (" + meilleur.cardinality() + "). Chemin choisi dans le contexte « " + racine + " ».",
+                        + " » (" + meilleur.cardinality() + ")";
+        if (arbitrage != null) payload.put("arbitratedBy", llm.nom());
+        return Optional.of(new Proposition("FIELD_MAPPING", f.code(), "« " + f.labelFr() + " » → " + meilleur.den(), payload,
+                justification + ". Chemin choisi dans le contexte « " + racine + " ».",
                 Objects.toString(meilleur.definition(), ""), "inference", confiance));
     }
 

@@ -144,6 +144,11 @@ public class Conformite {
         Set<String> livrables = new HashSet<>();
         v.deliverables().forEach(d -> livrables.add(d.code()));
 
+        // Tâches sans comportement (bpmn:task) : franchies automatiquement par le moteur
+        for (Task t : m.getModelElementsByType(Task.class))
+            if (t.getElementType().getTypeName().equals("task"))
+                c.add(Constat.alerte("BPMN", t.getId(), "Tâche « " + t.getName() + " » sans comportement : elle est franchie sans attente "
+                        + "(acceptable pour une étape réalisée hors workflow ; sinon, en faire une tâche humaine ou de service)."));
         for (ServiceTask t : m.getModelElementsByType(ServiceTask.class)) {
             String expr = t.getOperatonDelegateExpression();
             Matcher d = expr == null ? null : DELEGUE.matcher(expr);

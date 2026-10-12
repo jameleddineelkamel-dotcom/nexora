@@ -51,7 +51,7 @@ export interface StatutHisto { id: number; fromStatus: string | null; toStatus: 
 export interface Tache {
   id: string; name: string; taskKey: string; formKey: string | null; assignee: string; created: string; due: string | null; decisions: string[];
   dossierId: string | null; dossierNo: string | null; procedureCode: string | null; requestType: string | null; requestNature: string | null;
-  applicantName: string | null; status: string | null;
+  applicantName: string | null; status: string | null; fields?: string[];
 }
 export interface Message {
   id: string; dossierId: string | null; dossierNo: string | null; flowCode: string | null; flowSeq: number | null; code: string; type: string;

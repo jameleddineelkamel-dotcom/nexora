@@ -13,7 +13,7 @@ import java.util.*;
 @Component
 public class ProcessAgent implements Agent {
 
-    private static final Map<String, String[]> LIBELLES_STATUTS = Map.of(
+    static final Map<String, String[]> LIBELLES_STATUTS = Map.of(
             "EN_ATTENTE_PAIEMENT", new String[]{"En attente de paiement", "Awaiting payment", "warn"},
             "A_COTER", new String[]{"À coter", "To be assigned", "info"},
             "EN_ATTENTE_TRAITEMENT", new String[]{"En attente de traitement", "Awaiting processing", "info"},
@@ -30,6 +30,7 @@ public class ProcessAgent implements Agent {
 
     @Override
     public Sortie executer(Contexte ctx) {
+        if (!ctx.diagrammes().isEmpty()) return ImportDiagrammes.importer(ctx, LIBELLES_STATUTS);
         VersionComplete v = ctx.version();
         List<Proposition> props = new ArrayList<>();
         Set<String> existants = new HashSet<>();

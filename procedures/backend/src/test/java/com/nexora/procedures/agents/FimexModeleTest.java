@@ -126,7 +126,7 @@ class FimexModeleTest {
         // Version sans pièces, sans frais ni acteurs : tout est à extraire
         VersionComplete vide = new VersionComplete(fimex.version(), fimex.procedure(), fimex.requestTypes(), List.of(), fimex.statuses(),
                 fimex.sections(), fimex.fields(), List.of(), List.of(), fimex.messages(), fimex.flows(), null, null, fimex.deliverables());
-        Agents.Sortie s = new DocumentAgent(new ModeleLangage("", "")).executer(new Agents.Contexte(vide, "test", texte, sfd.getFileName().toString()));
+        Agents.Sortie s = new DocumentAgent(sansModele()).executer(new Agents.Contexte(vide, "test", texte, sfd.getFileName().toString()));
         Map<String, Long> parType = new TreeMap<>();
         s.propositions().forEach(p -> parType.merge(p.kind(), 1L, Long::sum));
         System.out.println("Document Agent : " + s.resume());
@@ -162,5 +162,86 @@ class FimexModeleTest {
         Set<String> s = new TreeSet<>();
         r.getErreurs().forEach(e -> s.add(e.champ()));
         return s;
+    }
+
+    /** Cas réel de la domiciliation bancaire (SFD et diagramme draw.io), si les fichiers sont présents sur le poste. */
+    private static final Path DOMI = Path.of("D:/DEV_2026/GUCE_2026/SFD_2026/SFD_IMPORT/02-J19JUIN-CIRCUIT-TRANSACTION/SFD_J2_VALID/DOMICILIATION");
+
+    private static VersionComplete vide() {
+        return new VersionComplete(fimex.version(), new Procedure("DOMI", "Domiciliation bancaire", null, "TRANSACTION", null, null, true, null, null),
+                List.of(), List.of(), fimex.statuses(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, null, List.of());
+    }
+
+    @Test
+    void leDiagrammeDrawioDeLaDomiciliationDevientUnWorkflowExecutable() throws Exception {
+        Path f = DOMI.resolve("BPMN1_domiciliation_import.drawio");
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(f), "fichier de domiciliation absent");
+        DrawioSource d = DrawioSource.lire(Files.readString(f)).getFirst();
+        System.out.println("draw.io : " + d.titre() + " — couloirs " + d.couloirs().stream().map(DrawioSource.Couloir::libelle).toList()
+                + ", " + d.noeuds().size() + " nœuds, " + d.arcs().size() + " flux");
+        assertEquals(3, d.couloirs().size());
+        BpmnImport.Resultat r = BpmnImport.convertir(d, vide(), "domi");
+        System.out.println("Rôles : " + r.roles());
+        System.out.println("Étapes : " + String.join(" → ", r.etapes()));
+        r.alertes().forEach(a -> System.out.println("  ! " + a));
+        BpmnModelInstance m = Bpmn.readModelFromStream(new ByteArrayInputStream(r.xml().getBytes(StandardCharsets.UTF_8)));
+        Bpmn.validateModel(m);
+        UserTask banque = m.getModelElementsByType(UserTask.class).stream().filter(u -> u.getName().contains("domiciliation")).findFirst().orElseThrow();
+        assertEquals("${agentTraitement}", banque.getOperatonAssignee());
+        assertTrue(r.xml().contains("value=\"COMPLEMENT,VALIDER,REJETER\""));
+        assertTrue(m.getModelElementsByType(ServiceTask.class).stream().anyMatch(s -> "${cotation}".equals(s.getOperatonDelegateExpression())));
+        assertTrue(m.getModelElementsByType(ServiceTask.class).stream().anyMatch(s -> "${delivrance}".equals(s.getOperatonDelegateExpression())));
+        assertFalse(m.getModelElementsByType(org.operaton.bpm.model.bpmn.instance.ParallelGateway.class).isEmpty());
+        assertTrue(r.statuts().containsAll(List.of("REJETE", "VALIDE", "COMPLEMENT_DEMANDE")), r.statuts().toString());
+        Files.writeString(Path.of("target", "domi-importe.bpmn"), r.xml());
+    }
+
+    @Test
+    void leCycleCompletDeLaDomiciliationEstExecutable() throws Exception {
+        Path f = DOMI.resolve("BPMN3_orchestration global.drawio");
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(f), "fichier de domiciliation absent");
+        DrawioSource d = DrawioSource.lire(Files.readString(f)).getFirst();
+        BpmnImport.Resultat r = BpmnImport.convertir(d, vide(), "domi");
+        System.out.println("Cycle complet : " + String.join(" → ", r.etapes()));
+        System.out.println("Livrables : " + r.livrables() + " ; statuts propres : " + r.statutsPropres());
+        BpmnModelInstance m = Bpmn.readModelFromStream(new ByteArrayInputStream(r.xml().getBytes(StandardCharsets.UTF_8)));
+        Bpmn.validateModel(m);
+        assertTrue(r.xml().contains("value=\"OUI,NON\""), "décision oui / non de l'apurement");
+        assertEquals(3, r.livrables().size());
+        assertEquals(3, r.livrables().stream().map(BpmnImport.Livrable::docCode).distinct().count());
+        assertTrue(r.statutsPropres().stream().anyMatch(s -> !s.fin()), "attestation de domiciliation délivrée en cours de processus");
+        assertTrue(r.statutsPropres().stream().filter(BpmnImport.Statut::fin).count() >= 2);
+        Files.writeString(Path.of("target", "domi-cycle-complet.bpmn"), r.xml());
+    }
+
+    @Test
+    void lesDonneesDeLaDomiciliationSontTireesDuTexteDeLaSfd() throws Exception {
+        Path f = DOMI.resolve("SFD_IMPORT-TRANSACTION_DOMICILIATION_e-GUCE3G_V1.1.docx");
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(f), "SFD de domiciliation absente");
+        String texte = TexteSource.lire(Files.readAllBytes(f), f.getFileName().toString()).complet();
+        List<Agents.Proposition> props = new ArrayList<>();
+        DonneesSfd.proposer(TexteSource.texte(texte), texte, vide(), props);
+        props.forEach(p -> System.out.println("  " + p.kind() + " " + p.title()));
+        Set<String> codes = new HashSet<>();
+        props.stream().filter(p -> p.kind().equals("FIELD")).forEach(p -> codes.add(p.target()));
+        assertTrue(codes.containsAll(List.of("circuitNumber", "importDeclarationNumber", "domiciliationReference", "domiciliationDate", "processingLocation", "taxIdentifier")), codes.toString());
+        Agents.Proposition ref = props.stream().filter(p -> p.target().equals("domiciliationReference")).findFirst().orElseThrow();
+        assertEquals(5, ref.payload().get("maxLength"));
+        assertTrue(props.stream().anyMatch(p -> p.kind().equals("REQUEST_TYPE")));
+    }
+
+    private static ModeleLangage sansModele() {
+        return new ModeleLangage("", "", "", java.time.Duration.ofSeconds(1), 20000, new com.nexora.procedures.web.Json(JsonMapper.builder().build()));
+    }
+
+    @Test
+    void lesReponsesDuModeleSontValidees() {
+        String doc = DocumentAgent.normaliser("La Chambre de Commerce émet un avis consultatif sur la demande.");
+        assertTrue(DocumentAgent.cite("Chambre de Commerce émet un avis", doc));
+        assertFalse(DocumentAgent.cite("Cette phrase n'existe pas dans le document", doc));
+        assertFalse(DocumentAgent.cite("avis", doc));
+        assertEquals("{\"a\":1}", ModeleLangage.extraireObjet("```json\n{\"a\":1}\n```"));
+        assertEquals(3, ModeleLangage.decouper("a\n".repeat(3000), 2000).size());
+        assertFalse(sansModele().disponible());
     }
 }
