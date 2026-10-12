@@ -23,7 +23,7 @@ import { Icon } from '../../shared/icon';
           <option value="ORCHESTRATEUR">{{ 'AI Orchestrator — séquence complète' | t }}</option>
           @for (a of agents(); track a.code) { @if (a.code !== 'ORCHESTRATEUR') { <option [value]="a.code" [disabled]="!a.enabled">{{ a.labelFr }}@if (!a.enabled) { ({{ 'désactivé' | t }}) }</option> } }
         </select></div>
-        <div class="field"><label for="sfd">{{ 'SFD et diagrammes (.docx, .txt, .drawio, .bpmn)' | t }}</label><input id="sfd" type="file" class="input" multiple accept=".docx,.txt,.md,.drawio,.bpmn,.xml" (change)="fichiers.set($any([...($any($event.target).files ?? [])]))" />
+        <div class="field"><label for="sfd">{{ 'SFD et annexes (Word, PDF, draw.io, BPMN, Excel, HTML, Figma JSON, images)' | t }}</label><input id="sfd" type="file" class="input" multiple accept=".docx,.pdf,.txt,.md,.drawio,.bpmn,.xml,.xlsx,.html,.htm,.json,.png,.jpg,.jpeg" (change)="fichiers.set($any([...($any($event.target).files ?? [])]))" />
           @if (fichiers().length) { <small class="muted">{{ fichiers().length }} {{ 'fichier(s)' | t }} : {{ noms() }}</small> }</div>
         <div class="field full"><label for="ob">{{ 'Objectif' | t }}</label><input id="ob" class="input" [value]="objectif()" (input)="objectif.set($any($event.target).value)" [placeholder]="'Ex. Modéliser la procédure à partir de la SFD jointe' | t" /></div>
       </div>

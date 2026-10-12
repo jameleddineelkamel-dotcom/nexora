@@ -13,6 +13,12 @@ import java.util.*;
 @Component
 public class ProcessAgent implements Agent {
 
+    private final LectureImages images;
+
+    public ProcessAgent(LectureImages images) {
+        this.images = images;
+    }
+
     static final Map<String, String[]> LIBELLES_STATUTS = Map.of(
             "EN_ATTENTE_PAIEMENT", new String[]{"En attente de paiement", "Awaiting payment", "warn"},
             "A_COTER", new String[]{"À coter", "To be assigned", "info"},
@@ -30,7 +36,10 @@ public class ProcessAgent implements Agent {
 
     @Override
     public Sortie executer(Contexte ctx) {
-        if (!ctx.diagrammes().isEmpty()) return ImportDiagrammes.importer(ctx, LIBELLES_STATUTS);
+        if (!ctx.diagrammes().isEmpty() || images.disponible() && ctx.annexes().stream().anyMatch(Annexe::image)) {
+            Sortie s = ImportDiagrammes.importer(ctx, LIBELLES_STATUTS, images);
+            if (!s.propositions().isEmpty() || !ctx.diagrammes().isEmpty()) return s;
+        }
         VersionComplete v = ctx.version();
         List<Proposition> props = new ArrayList<>();
         Set<String> existants = new HashSet<>();

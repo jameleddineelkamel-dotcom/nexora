@@ -15,9 +15,38 @@ public final class Agents {
                               String type, double confidence) {}
 
     /** Contexte d'une exécution : version visée, objectif, texte source éventuel (SFD) et diagrammes joints (.drawio, .bpmn). */
-    public record Contexte(VersionComplete version, String objectif, String texteSource, String nomSource, List<Diagramme> diagrammes) {
+    public record Contexte(VersionComplete version, String objectif, String texteSource, String nomSource, List<Diagramme> diagrammes,
+                           List<Annexe> annexes) {
         public Contexte(VersionComplete version, String objectif, String texteSource, String nomSource) {
-            this(version, objectif, texteSource, nomSource, List.of());
+            this(version, objectif, texteSource, nomSource, List.of(), List.of());
+        }
+
+        public Contexte(VersionComplete version, String objectif, String texteSource, String nomSource, List<Diagramme> diagrammes) {
+            this(version, objectif, texteSource, nomSource, diagrammes, List.of());
+        }
+    }
+
+    /**
+     * Annexe de la SFD : modèle de données (classeur .xlsx), maquettes d'écrans (.html, export Figma .json) ou image
+     * (PNG, JPEG : figure de la SFD, capture d'écran) lue par le modèle de vision.
+     */
+    public record Annexe(String nom, byte[] contenu) {
+        public boolean classeur() {
+            return ModeleDonnees.estClasseur(nom, contenu);
+        }
+
+        /** PNG ou JPEG (d'après la signature du fichier). */
+        public boolean image() {
+            return contenu.length > 8 && ((contenu[0] & 0xFF) == 0x89 && contenu[1] == 'P' && contenu[2] == 'N' && contenu[3] == 'G'
+                    || (contenu[0] & 0xFF) == 0xFF && (contenu[1] & 0xFF) == 0xD8);
+        }
+
+        public boolean figma() {
+            return FigmaSource.estFigma(nom, texte());
+        }
+
+        public String texte() {
+            return new String(contenu, java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 

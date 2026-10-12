@@ -36,12 +36,13 @@ public class AgentController {
     /** Exécution d'un agent (ou de l'orchestrateur) avec un texte source éventuel. */
     @PostMapping(value = "/versions/{id}/agents/{code}/run", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> executer(@PathVariable long id, @PathVariable String code, @RequestBody(required = false) Demande d) {
-        return agents.executer(id, code, d == null ? null : d.objective(), d == null ? null : d.text(), d == null ? null : d.sourceName(), List.of());
+        return agents.executer(id, code, d == null ? null : d.objective(), d == null ? null : d.text(), d == null ? null : d.sourceName(), List.of(), List.of());
     }
 
     /**
-     * Exécution avec des fichiers joints : SFD ou texte réglementaire (.docx, .txt, .md), analysés par le Document Agent,
-     * et diagrammes (.drawio, .bpmn, .xml) importés par le Process Agent.
+     * Exécution avec des fichiers joints : SFD ou texte réglementaire (.docx, .pdf, .txt, .md) ; diagrammes (.drawio,
+     * .bpmn, .xml) ; modèles de données (.xlsx) ; maquettes (.html, export Figma .json) ; images (.png, .jpg), y compris
+     * les figures intégrées à une SFD Word, lues par le modèle de vision s'il est configuré.
      */
     @PostMapping(value = "/versions/{id}/agents/{code}/run", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> executerAvecFichier(@PathVariable long id, @PathVariable String code, @RequestParam(required = false) String objective,
@@ -49,24 +50,33 @@ public class AgentController {
         StringBuilder texte = new StringBuilder();
         List<String> noms = new ArrayList<>();
         List<Agents.Diagramme> diagrammes = new ArrayList<>();
+        List<Agents.Annexe> annexes = new ArrayList<>();
         for (MultipartFile fichier : fichiers) {
             String nom = Objects.toString(fichier.getOriginalFilename(), "document");
             try {
                 byte[] contenu = fichier.getBytes();
                 String brut = new String(contenu, java.nio.charset.StandardCharsets.UTF_8);
-                if (nom.toLowerCase(Locale.ROOT).matches(".*\\.(drawio|bpmn|bpmn20\\.xml|xml)$") || DrawioSource.estDrawio(brut)) {
+                Agents.Annexe annexe = new Agents.Annexe(nom, contenu);
+                if (FigmaSource.estFigNatif(nom))
+                    throw new IllegalArgumentException("format Figma natif (.fig) non lisible : exportez le fichier en JSON (API Figma « GET /v1/files/:clé » "
+                            + "ou extension d'export JSON), ou exportez les écrans en PNG");
+                if (ModeleDonnees.estClasseur(nom, contenu) || Maquette.estMaquette(nom, brut) || annexe.image() || annexe.figma()) {
+                    annexes.add(annexe);
+                } else if (nom.toLowerCase(Locale.ROOT).matches(".*\\.(drawio|bpmn|bpmn20\\.xml|xml)$") || DrawioSource.estDrawio(brut)) {
                     if (!DrawioSource.estDrawio(brut) && !brut.contains("http://www.omg.org/spec/BPMN/20100524/MODEL"))
                         throw new IllegalArgumentException("ni draw.io ni BPMN 2.0");
                     diagrammes.add(new Agents.Diagramme(nom, brut));
                 } else {
                     texte.append(TexteSource.lire(contenu, nom).complet()).append('\n');
                     noms.add(nom);
+                    // Figures intégrées à la SFD Word (diagrammes BPMN, maquettes d'écrans) : lues par le modèle de vision
+                    TexteSource.images(contenu, nom).forEach((n, img) -> annexes.add(new Agents.Annexe(nom + " › " + n, img)));
                 }
             } catch (IOException | IllegalArgumentException e) {
                 throw ProceduresException.invalide("Fichier illisible (" + nom + ") : " + e.getMessage());
             }
         }
-        return agents.executer(id, code, objective, texte.isEmpty() ? null : texte.toString(), noms.isEmpty() ? null : String.join(", ", noms), diagrammes);
+        return agents.executer(id, code, objective, texte.isEmpty() ? null : texte.toString(), noms.isEmpty() ? null : String.join(", ", noms), diagrammes, annexes);
     }
 
     @GetMapping("/versions/{id}/runs")

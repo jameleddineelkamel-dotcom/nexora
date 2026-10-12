@@ -13,7 +13,7 @@ final class ImportDiagrammes {
     private record Candidat(String nom, DrawioSource drawio, String bpmn, int score) {}
 
     /** Importe le diagramme principal joint (draw.io converti, ou BPMN 2.0 repris tel quel) ; signale les autres. */
-    static Sortie importer(Contexte ctx, Map<String, String[]> libelles) {
+    static Sortie importer(Contexte ctx, Map<String, String[]> libelles, LectureImages images) {
         VersionComplete v = ctx.version();
         List<Proposition> props = new ArrayList<>();
         List<Candidat> candidats = new ArrayList<>();
@@ -28,6 +28,15 @@ final class ImportDiagrammes {
                     props.add(constat("warning", "Diagramme illisible : " + d.nom(), e.getMessage()));
                 }
         }
+        // Images (figures de la SFD, captures) lues comme diagrammes par le modèle de vision : après les sources réelles
+        if (images != null && images.disponible())
+            for (Annexe a : ctx.annexes()) {
+                if (!a.image()) continue;
+                var l = images.lire(a.nom(), a.contenu());
+                if (l.isEmpty() || l.get().drawio() == null) continue;
+                for (DrawioSource p : DrawioSource.lire(l.get().drawio()))
+                    candidats.add(new Candidat(a.nom() + " (lu par " + images.modele() + ")", p, null, p.score() - 50));
+            }
         if (candidats.isEmpty()) return Sortie.de("Aucun diagramme exploitable parmi les fichiers joints.", props);
         // Diagramme principal : BPMN 2.0 fourni, sinon le diagramme draw.io le plus complet (premier fichier en cas d'égalité)
         Candidat principal = candidats.stream().max(Comparator.comparingInt(Candidat::score)).orElseThrow();

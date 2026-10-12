@@ -384,6 +384,11 @@ ne compile pas. Une erreur bloque la soumission.
 | `TexteSource` | lecture du .docx (paragraphes et tableaux) |
 | `DonneesSfd` | champs tirés des scénarios des cas d'utilisation (verbes de saisie, énumérations, contraintes « exactement N caractères »), mot de tête → type (numéro, date, année, montant, devise…), code anglais en camelCase ; section `DEMANDE` ou `INSTRUCTION` selon l'acteur principal du cas d'utilisation ; options proposées → types de demande ; socle d'exécution (NIU, raison sociale, lieu de traitement) |
 | `DrawioSource` | lecture d'un fichier draw.io, y compris compressé (couloirs, événements, tâches, passerelles, documents, flux, positions) ; XML sécurisé (pas de DTD) |
+| `TexteSource` (PDF) | texte des PDF par Apache PDFBox 3 ; figures (word/media) d'une SFD Word extraites pour le modèle de vision |
+| `ModeleDonnees` | lecture directe des classeurs `.xlsx` (OOXML, sans dépendance) : entités, attributs, relations 1 — N |
+| `Maquette`, `FigmaSource` | écrans, blocs, champs et tableaux des maquettes HTML et des exports Figma JSON |
+| `ImportDonnees` | composition du formulaire : écran principal et variantes (→ types de demande), rapprochement libellé ↔ attribut du modèle de données (entités de la procédure préférées), types et listes ; `Referentiel` relie les listes citées aux tables réelles du Référentiel Commun |
+| `LectureImages` | images PNG / JPEG lues par le modèle de vision (`nexora.ai.vision-model`), une fois par empreinte : écran → maquette, diagramme → draw.io synthétique → import BPMN |
 | `ImportDiagrammes` | choix du diagramme principal (BPMN 2.0 fourni, sinon le draw.io le plus complet), signalement des autres, propositions BPMN, livrables et statuts |
 | `BpmnImport` | conversion draw.io → BPMN 2.0 exécutable avec couloirs (collaboration et `laneSet`) et coordonnées d'origine (règles en §8.2 et dans [ajouter-une-procedure.md](ajouter-une-procedure.md#partir-dune-sfd-et-de-ses-diagrammes-ex-domiciliation-bancaire)) |
 

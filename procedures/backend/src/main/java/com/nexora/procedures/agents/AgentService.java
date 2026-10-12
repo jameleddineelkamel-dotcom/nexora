@@ -85,10 +85,11 @@ public class AgentService {
 
     // ------------------------------------------------------------------ exécution
     @Transactional
-    public Map<String, Object> executer(long versionId, String agentCode, String objectif, String texte, String nomSource, List<Diagramme> diagrammes) {
+    public Map<String, Object> executer(long versionId, String agentCode, String objectif, String texte, String nomSource, List<Diagramme> diagrammes,
+                                        List<Annexe> annexes) {
         VersionComplete v = versions.complete(versionId);
         String objectifEffectif = objectif == null || objectif.isBlank() ? "Modéliser la procédure " + v.procedure().code() : objectif.strip();
-        Contexte ctx = new Contexte(v, objectifEffectif, texte, nomSource, diagrammes);
+        Contexte ctx = new Contexte(v, objectifEffectif, texte, nomSource, diagrammes, annexes);
         List<Long> executions = new ArrayList<>();
         if (agentCode.equals("ORCHESTRATEUR")) {
             long parent = ouvrir(null, "ORCHESTRATEUR", v, objectifEffectif, "proposer", texte);
@@ -106,13 +107,13 @@ public class AgentService {
             }
             int total = 0;
             List<String> choisi = planifier(objectifEffectif, texte != null && !texte.isBlank(), parent);
-            // Un diagramme joint est toujours importé par le Process Agent
-            List<String> plan = diagrammes.isEmpty() || choisi.contains("PROCESSUS") ? choisi
-                    : SEQUENCE.stream().filter(c -> choisi.contains(c) || c.equals("PROCESSUS")).toList();
+            // Un diagramme joint est toujours importé par le Process Agent ; un modèle de données ou une maquette par le Document Agent
+            List<String> plan = SEQUENCE.stream().filter(c -> choisi.contains(c) || c.equals("PROCESSUS") && !diagrammes.isEmpty()
+                    || c.equals("DOCUMENT") && !annexes.isEmpty()).toList();
             for (String code : plan) {
-                if (code.equals("DOCUMENT") && (texte == null || texte.isBlank())) continue;
+                if (code.equals("DOCUMENT") && (texte == null || texte.isBlank()) && annexes.isEmpty()) continue;
                 VersionComplete courante = repo.complete(versionId);
-                long id = lancer(parent, code, new Contexte(courante, objectifEffectif, texte, nomSource, diagrammes));
+                long id = lancer(parent, code, new Contexte(courante, objectifEffectif, texte, nomSource, diagrammes, annexes));
                 executions.add(id);
                 total += jdbc.sql("select proposals from studio.ai_run where id = :id").param("id", id).query(Integer.class).single();
             }
@@ -127,7 +128,8 @@ public class AgentService {
     private long lancer(Long parent, String code, Contexte ctx) {
         Agent agent = agents.get(code);
         if (agent == null) throw ProceduresException.introuvable("Agent inconnu : " + code);
-        String entree = Objects.toString(ctx.texteSource(), "") + ctx.diagrammes().stream().map(Diagramme::contenu).reduce("", String::concat);
+        String entree = Objects.toString(ctx.texteSource(), "") + ctx.diagrammes().stream().map(Diagramme::contenu).reduce("", String::concat)
+                + ctx.annexes().stream().map(a -> a.nom() + VersionService.sha256(new String(a.contenu(), java.nio.charset.StandardCharsets.ISO_8859_1))).reduce("", String::concat);
         long id = ouvrir(parent, code, ctx.version(), ctx.objectif(), "proposer", entree.isEmpty() ? null : entree);
         String decision = jdbc.sql("select policy_decision::text from studio.ai_run where id = :id").param("id", id).query(String.class).single();
         if (decision.equals("deny")) {

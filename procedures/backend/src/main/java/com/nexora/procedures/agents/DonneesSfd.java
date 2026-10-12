@@ -117,6 +117,7 @@ final class DonneesSfd {
         v.fields().forEach(f -> existants.add(f.code()));
         Set<String> libellesExistants = new HashSet<>();
         v.fields().forEach(f -> libellesExistants.add(DocumentAgent.normaliser(f.labelFr())));
+        props.forEach(p -> { if (p.kind().equals("FIELD")) libellesExistants.add(DocumentAgent.normaliser(String.valueOf(p.payload().get("labelFr")))); });
         props.forEach(p -> { if (p.kind().equals("FIELD")) existants.add(p.target()); });
         Set<String> sections = new HashSet<>();
         v.sections().forEach(s -> sections.add(s.code()));

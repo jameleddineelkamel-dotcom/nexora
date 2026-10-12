@@ -221,7 +221,7 @@ class FimexModeleTest {
         String texte = TexteSource.lire(Files.readAllBytes(f), f.getFileName().toString()).complet();
         List<Agents.Proposition> props = new ArrayList<>();
         DonneesSfd.proposer(TexteSource.texte(texte), texte, vide(), props);
-        props.forEach(p -> System.out.println("  " + p.kind() + " " + p.title()));
+        props.forEach(p -> System.out.println("  " + p.kind() + " " + p.title() + (p.kind().equals("FINDING") ? " : " + p.payload().get("message") : "")));
         Set<String> codes = new HashSet<>();
         props.stream().filter(p -> p.kind().equals("FIELD")).forEach(p -> codes.add(p.target()));
         assertTrue(codes.containsAll(List.of("circuitNumber", "importDeclarationNumber", "domiciliationReference", "domiciliationDate", "processingLocation", "taxIdentifier")), codes.toString());
@@ -230,8 +230,96 @@ class FimexModeleTest {
         assertTrue(props.stream().anyMatch(p -> p.kind().equals("REQUEST_TYPE")));
     }
 
+    @Test
+    void leFormulaireDeLaDiEstComposeDesModelesDeDonneesEtDeLaMaquette() throws Exception {
+        Path dl = Path.of(System.getProperty("user.home"), "Downloads");
+        List<String> dm = List.of("DM_TRANSACTION_eGUCE3G_eForce_V1.0.xlsx", "DM_TRANSACTION_eGUCE3G_eGov_V1.0.xlsx", "DM_EXPEDITION_eGUCE3G_eBUSINESS_V1.1.xlsx");
+        Path html = dl.resolve("Wireframes_Circuit_Transaction.html");
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(html) && dm.stream().allMatch(x -> Files.exists(dl.resolve(x))), "dossier DI absent");
+        List<ModeleDonnees> modeles = new ArrayList<>();
+        for (String x : dm) modeles.add(ModeleDonnees.lire(x, Files.readAllBytes(dl.resolve(x))));
+        System.out.println("DM eForce : " + modeles.getFirst().entites().keySet() + " ; relations " + modeles.getFirst().relations().size());
+        VersionComplete di = new VersionComplete(fimex.version(), new Procedure("DI", "Déclaration Importation", null, "TRANSACTION", null, null, true, null, null),
+                List.of(), List.of(), fimex.statuses(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, null, List.of());
+        List<Agents.Proposition> props = new ArrayList<>();
+        String resume = ImportDonnees.proposer(modeles, List.of(Maquette.lire(Files.readString(html))), di, null, props);
+        System.out.println("DI : " + resume);
+        props.forEach(p -> System.out.println("  " + p.kind() + " " + p.title() + (p.kind().equals("FINDING") ? " : " + p.payload().get("message") : "")));
+        Map<String, Map<String, Object>> champs = new HashMap<>();
+        props.stream().filter(p -> p.kind().equals("FIELD")).forEach(p -> champs.put(p.target(), p.payload()));
+        assertEquals("REF_COUNTRY", champs.get("countryOfOriginCode").get("refdataTable"));
+        assertEquals("REF_INCOTERM", champs.get("incotermsCode").get("refdataTable"));
+        assertEquals("DECIMAL", champs.get("totalAmountCurrency").get("dataType"));
+        assertEquals("REF_NDP", champs.get("hsTariffCode").get("refdataTable"));
+        assertEquals("niu", champs.get("taxIdentifier").get("prefill"));
+        assertTrue(props.stream().anyMatch(p -> p.kind().equals("SECTION") && Boolean.TRUE.equals(p.payload().get("repeating"))), "marchandises répétitives");
+        assertTrue(props.stream().filter(p -> p.kind().equals("REQUEST_TYPE")).count() >= 4, "variantes classique, médicaments, groupage…");
+    }
+
+    @Test
+    void lesSfdEnPdfSontLues() throws Exception {
+        java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+        try (org.apache.pdfbox.pdmodel.PDDocument d = new org.apache.pdfbox.pdmodel.PDDocument()) {
+            org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+            d.addPage(page);
+            try (var c = new org.apache.pdfbox.pdmodel.PDPageContentStream(d, page)) {
+                c.beginText();
+                c.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 11);
+                c.newLineAtOffset(50, 700);
+                c.showText("L'operateur renseigne le numero de circuit et la date de facture.");
+                c.endText();
+            }
+            d.save(o);
+        }
+        String texte = TexteSource.lire(o.toByteArray(), "sfd.pdf").complet();
+        assertTrue(texte.contains("numero de circuit"), texte);
+    }
+
+    @Test
+    void uneMaquetteFigmaDevientDesChamps() {
+        String figma = """
+                {"document":{"type":"DOCUMENT","children":[{"type":"CANVAS","name":"Page 1","children":[
+                  {"type":"FRAME","name":"Nouvelle demande","children":[
+                    {"type":"FRAME","name":"Informations générales","children":[
+                      {"type":"INSTANCE","name":"Input / Text","children":[{"type":"TEXT","characters":"Pays d'origine *"},{"type":"TEXT","characters":"AN..30"}]},
+                      {"type":"TEXT","characters":"Devise"},
+                      {"type":"INSTANCE","name":"Select","children":[{"type":"TEXT","characters":"Choisir"}]}]},
+                    {"type":"FRAME","name":"Tableau marchandises","children":[{"type":"FRAME","name":"Entête","children":[
+                      {"type":"TEXT","characters":"Code SH *"},{"type":"TEXT","characters":"Quantité"}]}]}]}]}]}}""";
+        Maquette m = FigmaSource.lire(figma, new com.nexora.procedures.web.Json(JsonMapper.builder().build()));
+        Maquette.Ecran e = m.ecrans().getFirst();
+        assertEquals("Nouvelle demande", e.titre());
+        Maquette.Champ pays = e.blocs().getFirst().champs().getFirst();
+        assertEquals("Pays d'origine", pays.libelle());
+        assertTrue(pays.obligatoire());
+        assertEquals("Devise", e.blocs().getFirst().champs().get(1).libelle());
+        assertTrue(e.blocs().get(1).tableau());
+        assertEquals(2, e.blocs().get(1).champs().size());
+    }
+
+    @Test
+    void uneImageLueParLeModeleDeVisionDevientMaquetteOuDiagramme() {
+        LectureImages.Lecture ecran = LectureImages.interpreter("capture.png", Map.of("kind", "SCREEN", "title", "Saisie DI", "screen", Map.of("blocks", List.of(
+                Map.of("title", "Marchandises", "table", true, "fields", List.of(Map.of("label", "Code SH *"), Map.of("label", "Quantité"))),
+                Map.of("title", "Général", "fields", List.of(Map.of("label", "Mode de transport", "options", List.of("Maritime", "Aérien"))))))));
+        assertEquals(2, ecran.maquette().ecrans().getFirst().blocs().size());
+        assertTrue(ecran.maquette().ecrans().getFirst().blocs().getFirst().champs().getFirst().obligatoire());
+        LectureImages.Lecture diagramme = LectureImages.interpreter("bpmn.png", Map.of("kind", "DIAGRAM", "title", "DI", "diagram", Map.of(
+                "lanes", List.of("Importateur", "Banque"),
+                "nodes", List.of(Map.of("id", "d", "type", "START", "lane", "Importateur"), Map.of("id", "t", "type", "TASK", "label", "Instruire la demande", "lane", "Banque"),
+                        Map.of("id", "g", "type", "GATEWAY", "lane", "Banque"), Map.of("id", "r", "type", "END", "label", "Rejetée", "lane", "Banque"),
+                        Map.of("id", "v", "type", "END", "label", "Validée", "lane", "Banque")),
+                "flows", List.of(Map.of("from", "d", "to", "t"), Map.of("from", "t", "to", "g"), Map.of("from", "g", "to", "r", "label", "rejet"),
+                        Map.of("from", "g", "to", "v", "label", "accord")))));
+        DrawioSource d = DrawioSource.lire(diagramme.drawio()).getFirst();
+        assertEquals(2, d.couloirs().size());
+        BpmnImport.Resultat r = BpmnImport.convertir(d, vide(), "di");
+        Bpmn.validateModel(Bpmn.readModelFromStream(new ByteArrayInputStream(r.xml().getBytes(StandardCharsets.UTF_8))));
+        assertTrue(r.xml().contains("value=\"VALIDER,REJETER\""), r.xml());
+    }
+
     private static ModeleLangage sansModele() {
-        return new ModeleLangage("", "", "", java.time.Duration.ofSeconds(1), 20000, new com.nexora.procedures.web.Json(JsonMapper.builder().build()));
+        return new ModeleLangage("", "", "", java.time.Duration.ofSeconds(1), 20000, "", new com.nexora.procedures.web.Json(JsonMapper.builder().build()));
     }
 
     @Test

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -35,8 +36,45 @@ public final class TexteSource {
     public static TexteSource lire(byte[] contenu, String nom) {
         TexteSource t = new TexteSource();
         if (nom != null && nom.toLowerCase().endsWith(".docx")) t.docx(contenu);
+        else if (nom != null && nom.toLowerCase().endsWith(".pdf") || contenu.length > 4 && new String(contenu, 0, 5, StandardCharsets.ISO_8859_1).equals("%PDF-"))
+            t.analyserTexte(pdf(contenu));
         else t.analyserTexte(new String(contenu, StandardCharsets.UTF_8));
         return t;
+    }
+
+    /**
+     * Figures d'une SFD Word (word/media, PNG / JPEG de plus de 10 Ko : diagrammes, maquettes), dans l'ordre des
+     * fichiers ; vide pour un autre format. Au plus 20 images de 10 Mo.
+     */
+    public static Map<String, byte[]> images(byte[] contenu, String nom) {
+        Map<String, byte[]> r = new java.util.TreeMap<>(java.util.Comparator.comparingInt((String n) -> n.replaceAll("\\D", "").isEmpty() ? 0
+                : Integer.parseInt(n.replaceAll("\\D", "").substring(0, Math.min(6, n.replaceAll("\\D", "").length())))).thenComparing(n -> n));
+        if (nom == null || !nom.toLowerCase().endsWith(".docx")) return r;
+        try (java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(contenu))) {
+            java.util.zip.ZipEntry e;
+            while ((e = z.getNextEntry()) != null && r.size() < 20) {
+                String n = e.getName();
+                if (!n.startsWith("word/media/") || !n.toLowerCase().matches(".*\\.(png|jpe?g)$")) continue;
+                byte[] b = z.readNBytes(10 * 1024 * 1024);
+                if (b.length > 10 * 1024) r.put(n.substring("word/media/".length()), b);
+            }
+        } catch (java.io.IOException ex) {
+            return r;
+        }
+        return r;
+    }
+
+    /** Texte d'un PDF (ordre de lecture par position) ; un PDF scanné, sans couche texte, ne donne rien. */
+    static String pdf(byte[] contenu) {
+        try (org.apache.pdfbox.pdmodel.PDDocument d = org.apache.pdfbox.Loader.loadPDF(contenu)) {
+            org.apache.pdfbox.text.PDFTextStripper s = new org.apache.pdfbox.text.PDFTextStripper();
+            s.setSortByPosition(true);
+            String texte = s.getText(d);
+            if (texte.isBlank()) throw new IllegalArgumentException("PDF sans texte (document scanné ?) : fournissez la version Word, ou des images pour le modèle de vision");
+            return texte;
+        } catch (java.io.IOException e) {
+            throw new IllegalArgumentException("PDF illisible : " + e.getMessage(), e);
+        }
     }
 
     public static TexteSource texte(String s) {

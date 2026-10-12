@@ -64,6 +64,8 @@ public class ModeleLangage {
 
     private final String url;
     private final String modele;
+    /** Modèle capable de lire des images (diagrammes et écrans en PNG / JPEG) ; vide = pas de lecture d'image. */
+    private final String modeleVision;
     private final String cle;
     private final Duration delai;
     private final int maxCaracteres;
@@ -73,10 +75,11 @@ public class ModeleLangage {
 
     public ModeleLangage(@Value("${nexora.ai.url:}") String url, @Value("${nexora.ai.model:}") String modele,
                          @Value("${nexora.ai.api-key:}") String cle, @Value("${nexora.ai.timeout:PT300S}") Duration delai,
-                         @Value("${nexora.ai.max-chars:20000}") int maxCaracteres, Json json) {
+                         @Value("${nexora.ai.max-chars:20000}") int maxCaracteres, @Value("${nexora.ai.vision-model:}") String modeleVision, Json json) {
         String u = url == null ? "" : url.strip();
         this.url = u.endsWith("/") ? u.substring(0, u.length() - 1) : u;
         this.modele = modele == null ? "" : modele.strip();
+        this.modeleVision = modeleVision == null ? "" : modeleVision.strip();
         this.cle = cle == null ? "" : cle.strip();
         this.delai = delai;
         this.maxCaracteres = Math.max(2000, maxCaracteres);
@@ -93,6 +96,15 @@ public class ModeleLangage {
         return disponible() ? modele : "heuristique";
     }
 
+    /** Un modèle de vision est configuré (lecture des images jointes). */
+    public boolean visionDisponible() {
+        return !url.isEmpty() && !modeleVision.isEmpty();
+    }
+
+    public String nomVision() {
+        return modeleVision;
+    }
+
     public int maxCaracteres() {
         return maxCaracteres;
     }
@@ -102,7 +114,8 @@ public class ModeleLangage {
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("available", disponible());
         e.put("model", nom());
-        e.put("provider", disponible() ? "auto-hébergé (API compatible OpenAI)" : "aucun");
+        e.put("provider", disponible() || visionDisponible() ? "auto-hébergé (API compatible OpenAI)" : "aucun");
+        e.put("visionModel", visionDisponible() ? modeleVision : null);
         if (disponible()) {
             e.put("endpoint", url);
             try {
@@ -134,24 +147,35 @@ public class ModeleLangage {
      */
     public Optional<Reponse> json(String systeme, String utilisateur) {
         if (!disponible()) return Optional.empty();
+        return demander(modele, systeme, utilisateur);
+    }
+
+    /** Lecture d'une image (PNG, JPEG) par le modèle de vision : réponse JSON selon le schéma de {@code systeme}. */
+    public Optional<Reponse> jsonImage(String systeme, String consigne, byte[] image, String type) {
+        if (!visionDisponible()) return Optional.empty();
+        String url = "data:" + type + ";base64," + Base64.getEncoder().encodeToString(image);
+        return demander(modeleVision, systeme, List.of(Map.of("type", "text", "text", consigne), Map.of("type", "image_url", "image_url", Map.of("url", url))));
+    }
+
+    private Optional<Reponse> demander(String nomModele, String systeme, Object utilisateur) {
         Bilan bilan = BILAN.get();
         long debut = System.currentTimeMillis();
         try {
-            String contenu = appeler(systeme, utilisateur);
+            String contenu = appeler(nomModele, systeme, utilisateur);
             Map<String, Object> objet = json.map(extraireObjet(contenu));
             Reponse r = new Reponse(objet, VersionService.sha256(contenu), System.currentTimeMillis() - debut);
             if (bilan != null) bilan.ajouter(r);
             return Optional.of(r);
         } catch (Exception e) {
-            log.warn("Modèle de langage {} : {}", modele, e.getMessage());
+            log.warn("Modèle de langage {} : {}", nomModele, e.getMessage());
             if (bilan != null) bilan.echec();
             return Optional.empty();
         }
     }
 
-    private String appeler(String systeme, String utilisateur) throws Exception {
+    private String appeler(String nomModele, String systeme, Object utilisateur) throws Exception {
         Map<String, Object> corps = new LinkedHashMap<>();
-        corps.put("model", modele);
+        corps.put("model", nomModele);
         corps.put("temperature", 0);
         corps.put("stream", false);
         corps.put("messages", List.of(Map.of("role", "system", "content", systeme), Map.of("role", "user", "content", utilisateur)));
@@ -161,7 +185,7 @@ public class ModeleLangage {
         if (r.statusCode() == 400 && formatJson) {
             // Serveur sans « response_format » : le schéma reste imposé par la consigne
             formatJson = false;
-            return appeler(systeme, utilisateur);
+            return appeler(nomModele, systeme, utilisateur);
         }
         if (r.statusCode() / 100 != 2) throw new IllegalStateException("HTTP " + r.statusCode() + " " + r.body().substring(0, Math.min(200, r.body().length())));
         Map<String, Object> reponse = json.map(r.body());

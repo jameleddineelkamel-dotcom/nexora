@@ -28,8 +28,21 @@ public class DocumentAgent implements Agent {
 
     private final ModeleLangage llm;
 
-    public DocumentAgent(ModeleLangage llm) {
+    private final Referentiel referentiel;
+    private final LectureImages images;
+    private final com.nexora.procedures.web.Json json;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DocumentAgent(ModeleLangage llm, Referentiel referentiel, LectureImages images, com.nexora.procedures.web.Json json) {
         this.llm = llm;
+        this.referentiel = referentiel;
+        this.images = images;
+        this.json = json;
+    }
+
+    /** Sans accès au Référentiel Commun ni au modèle de vision (tests) : listes reliées par les correspondances connues. */
+    public DocumentAgent(ModeleLangage llm) {
+        this(llm, null, null, null);
     }
 
     @Override
@@ -39,11 +52,14 @@ public class DocumentAgent implements Agent {
 
     @Override
     public Sortie executer(Contexte ctx) {
-        if (ctx.texteSource() == null || ctx.texteSource().isBlank())
-            return Sortie.de("Aucun document source fourni : joignez la SFD (Word ou texte) pour lancer l'extraction.", List.of());
-        TexteSource src = TexteSource.texte(ctx.texteSource());
         VersionComplete v = ctx.version();
         List<Proposition> props = new ArrayList<>();
+        // Annexes : modèles de données (.xlsx) et maquettes d'écrans (.html) composent le formulaire
+        String donnees = annexes(ctx, v, props);
+        if (ctx.texteSource() == null || ctx.texteSource().isBlank())
+            return donnees == null ? Sortie.de("Aucun document source fourni : joignez la SFD (Word ou texte) pour lancer l'extraction.", List.of())
+                    : Sortie.de("Formulaire : " + donnees + ".", props);
+        TexteSource src = TexteSource.texte(ctx.texteSource());
         pieces(src, v, props);
         acteurs(src, v, props);
         frais(src, v, props);
@@ -64,8 +80,43 @@ public class DocumentAgent implements Agent {
         }
         Map<String, Long> parType = new TreeMap<>();
         props.forEach(p -> parType.merge(p.kind(), 1L, Long::sum));
-        return new Sortie(props.isEmpty() ? "Aucun élément reconnu dans « " + ctx.nomSource() + " »." + complement
-                : "Extraction de « " + Objects.toString(ctx.nomSource(), "document") + " » : " + parType + complement, props, modele);
+        return new Sortie((props.isEmpty() ? "Aucun élément reconnu dans « " + ctx.nomSource() + " »." + complement
+                : "Extraction de « " + Objects.toString(ctx.nomSource(), "document") + " » : " + parType + complement)
+                + (donnees == null ? "" : " Formulaire : " + donnees + "."), props, modele);
+    }
+
+    /** Lit les annexes (classeurs de modèle de données, maquettes HTML) et propose le formulaire ; null s'il n'y en a pas. */
+    private String annexes(Contexte ctx, VersionComplete v, List<Proposition> props) {
+        if (ctx.annexes().isEmpty()) return null;
+        List<ModeleDonnees> modeles = new ArrayList<>();
+        List<Maquette> maquettes = new ArrayList<>();
+        List<String> nonLues = new ArrayList<>(), lues = new ArrayList<>();
+        for (Annexe a : ctx.annexes())
+            try {
+                if (a.classeur()) modeles.add(ModeleDonnees.lire(a.nom(), a.contenu()));
+                else if (a.image()) {
+                    var l = images == null ? java.util.Optional.<LectureImages.Lecture>empty() : images.lire(a.nom(), a.contenu());
+                    if (l.isEmpty()) { nonLues.add(a.nom()); continue; }
+                    if (l.get().maquette() != null) maquettes.add(l.get().maquette());
+                    if (!l.get().nature().equals("OTHER")) lues.add(a.nom() + " : " + l.get().message());
+                } else if (a.figma() && json != null) maquettes.add(FigmaSource.lire(a.texte(), json));
+                else maquettes.add(Maquette.lire(a.texte()));
+            } catch (IllegalArgumentException e) {
+                props.add(new Proposition("FINDING", "annexe-" + Integer.toHexString(a.nom().hashCode()), "Annexe illisible : " + a.nom(),
+                        Map.of("severity", "warning", "rule", "IMPORT-DONNEES", "message", e.getMessage()), e.getMessage(), null, "check", 0.9));
+            }
+        if (!lues.isEmpty())
+            props.add(new Proposition("FINDING", "images-lues", "Images lues par le modèle de vision", Map.of("severity", "info", "rule", "IMPORT-IMAGES",
+                    "message", "Lu par " + images.modele() + " (à vérifier : aucune citation n'est contrôlable dans une image) — " + String.join(" ; ", lues)),
+                    "Lecture d'images par le modèle de vision auto-hébergé.", null, "check", 0.9));
+        if (!nonLues.isEmpty())
+            props.add(new Proposition("FINDING", "images-non-lues", nonLues.size() + " image(s) non lue(s)", Map.of("severity", "warning", "rule", "IMPORT-IMAGES",
+                    "message", "Les images (" + String.join(", ", nonLues.subList(0, Math.min(6, nonLues.size()))) + (nonLues.size() > 6 ? "…" : "")
+                            + ") ne sont lisibles que par un modèle de vision : configurez NEXORA_AI_VISION_MODEL (ex. qwen2.5vl:7b sur Ollama), "
+                            + "ou joignez leur source (.drawio, .bpmn, .html, export Figma)."),
+                    "Une image ne contient pas de texte exploitable sans modèle de vision.", null, "check", 0.9));
+        if (modeles.isEmpty() && maquettes.stream().allMatch(m -> m.ecrans().isEmpty())) return null;
+        return ImportDonnees.proposer(modeles, maquettes, v, referentiel, props);
     }
 
     // ------------------------------------------------------------------ extraction par le modèle de langage

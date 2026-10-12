@@ -19,6 +19,7 @@
 		<operaton.version>2.1.5</operaton.version>
 		<!-- Drools (Apache KIE) : moteur de règles métier -->
 		<drools.version>10.2.0</drools.version>
+		<pdfbox.version>3.0.3</pdfbox.version>
 		<!-- Frontend Angular intégré au jar à la phase package ; -DskipFrontend pour l'omettre -->
 		<skipFrontend>false</skipFrontend>
 		<frontend.dir>${project.basedir}/../frontend</frontend.dir>
@@ -79,6 +80,12 @@
 			<groupId>org.drools</groupId>
 			<artifactId>drools-mvel</artifactId>
 			<version>${drools.version}</version>
+		</dependency>
+		<!-- Lecture des SFD et annexes au format PDF (texte) -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

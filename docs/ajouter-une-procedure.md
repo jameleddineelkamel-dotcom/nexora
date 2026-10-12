@@ -73,6 +73,18 @@ export BPMN 2.0). Joignez-les avec la SFD :
 | options « sélectionne « Domiciliation des biens » » ; modification, annulation décrites | **types de demande** (code CUR proposé) et natures (INITIAL, AMENDMENT, CANCELLATION) |
 | diagrammes draw.io (plusieurs fichiers ou pages) | **import du diagramme principal** (le plus complet ; un `.bpmn` fourni est prioritaire), tracé et couloirs conservés, rendu exécutable ; les autres diagrammes sont signalés |
 
+Fichiers acceptés (sélection multiple, onglet **Agents IA**) :
+
+| Fichier | Lu par | Ce qui en est tiré |
+|---|---|---|
+| SFD Word `.docx`, **PDF** `.pdf` (avec couche texte), `.txt`, `.md` | Document Agent | pièces, frais, acteurs, délais, règles, champs du texte des cas d'utilisation |
+| **Modèle de données** Excel `.xlsx` (une feuille par entité : Attribut, Libellé FR, Format `an..35` / `n..16,2`, Liste de codes, Obligatoire, UNTDED, OMD, UN/CCL ; feuille des relations 1 — N) | Document Agent | code, type, longueur, liste du Référentiel Commun (REF_UNIT → REF_MEASUREMENT_UNIT, REF_NSH → REF_NDP…), obligation et références de chaque champ ; sans maquette : sections tirées des entités PROCEDURE_&lt;code&gt;, dossier et entités filles (répétitives) |
+| **Maquettes** HTML `.html` (wireframes) ou **Figma** exporté en JSON `.json` (API « GET /v1/files/:clé ») | Document Agent | écran de saisie principal : blocs → sections, libellés, obligation (*), champs auto-renseignés (pré-remplissage registre), tableaux → groupes répétitifs ; variantes d'un même écran → types de demande ; chaque champ rapproché de l'attribut du modèle de données |
+| Diagrammes `.drawio`, `.bpmn` | Process Agent | workflow exécutable (règles ci-dessous) |
+| **Images** `.png`, `.jpg` (et figures intégrées à la SFD Word) | modèle de **vision** auto-hébergé (`NEXORA_AI_VISION_MODEL`, ex. `qwen2.5vl:7b`) | écran → maquette, diagramme → workflow ; sans modèle de vision, les images sont signalées et non lues |
+
+Le format Figma natif `.fig` (binaire) n'est pas lisible : exportez le JSON, ou les écrans en PNG.
+
 Règles de l'import d'un diagramme :
 
 - **couloirs** : celui du demandeur (importateur, opérateur, CAD…) → tâche initiale réalisée dans eFORCE, tâches suivantes =

@@ -155,7 +155,8 @@ public class RevueService {
                 List<Field> champs = new ArrayList<>(repo.champs(id).stream().filter(f -> !f.code().equals(texte(p, "code"))).toList());
                 champs.add(new Field(texte(p, "code"), section, texte(p, "labelFr"), texte(p, "labelEn"), Objects.toString(p.get("dataType"), "TEXT"),
                         p.get("maxLength") == null ? null : entier(p, "maxLength"), texte(p, "pattern"), Objects.toString(p.get("mandatory"), "NON"),
-                        texte(p, "conditionText"), texte(p, "refdataTable"), null, texte(p, "untdedRef"), null, texte(p, "cclDen"), null, null,
+                        texte(p, "conditionText"), texte(p, "refdataTable"), valeursLocales(p.get("codeValues")), texte(p, "untdedRef"),
+                        texte(p, "wcoRef"), texte(p, "cclDen"), texte(p, "cclUid"), null,
                         Boolean.TRUE.equals(p.get("searchable")), texte(p, "prefill"), !Boolean.FALSE.equals(p.get("amendable")), texte(p, "helpFr"), null,
                         entier(p, "sortOrder")));
                 repo.formulaire(id, sections, champs);
@@ -176,6 +177,17 @@ public class RevueService {
             }
             default -> throw ProceduresException.invalide("Type de proposition non applicable : " + kind);
         }
+    }
+
+    /** Valeurs d'une liste locale proposée ([{code, labelFr, labelEn}]), ou null. */
+    private static List<CodeValue> valeursLocales(Object o) {
+        if (!(o instanceof List<?> l) || l.isEmpty()) return null;
+        List<CodeValue> r = new ArrayList<>();
+        for (Object x : l)
+            if (x instanceof Map<?, ?> m && m.get("code") != null)
+                r.add(new CodeValue(String.valueOf(m.get("code")), Objects.toString(m.get("labelFr"), String.valueOf(m.get("code"))),
+                        m.get("labelEn") == null ? null : String.valueOf(m.get("labelEn"))));
+        return r.isEmpty() ? null : r;
     }
 
     private static String texte(Map<String, Object> p, String cle) {
