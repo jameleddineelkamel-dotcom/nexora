@@ -36,14 +36,14 @@ import { Icon } from '../../shared/icon';
         @switch (v().version.lifecycleStatus) {
           @case ('draft') { @if (auth.a(d.modeliser)) { <button class="btn primary" (click)="action('submit')" [disabled]="occupe() || nb('error') > 0"><nx-icon name="send" /> {{ 'Soumettre à revue' | t }}</button> } }
           @case ('in_review') { @if (auth.a(d.approuver)) {
-            <button class="btn primary" (click)="action('approve')" [disabled]="occupe()"><nx-icon name="check" /> {{ 'Approuver' | t }}</button>
+            <button class="btn primary" (click)="action('approve')" [disabled]="occupe() || auteur()"><nx-icon name="check" /> {{ 'Approuver' | t }}</button>
             <button class="btn danger" (click)="action('reject')" [disabled]="occupe()"><nx-icon name="back" /> {{ 'Renvoyer en brouillon' | t }}</button> } }
           @case ('approved') { @if (auth.a(d.publier)) { <button class="btn primary" (click)="action('publish')" [disabled]="occupe()"><nx-icon name="upload" /> {{ 'Publier' | t }}</button> } }
           @case ('published') { @if (auth.a(d.publier)) { <button class="btn danger" (click)="action('retire')" [disabled]="occupe()"><nx-icon name="archive" /> {{ 'Retirer' | t }}</button> } }
         }
         <button class="btn" (click)="telechargerPaquet()"><nx-icon name="download" /> {{ (v().version.packageHash ? 'Paquet publié (JSON)' : 'Aperçu du paquet (JSON)') | t }}</button>
       </div>
-      @if (v().version.lifecycleStatus === 'in_review' && v().version.submittedBy === auth.utilisateur()?.username) {
+      @if (v().version.lifecycleStatus === 'in_review' && auteur()) {
         <div class="alert warn small">{{ 'Vous avez soumis cette version : l\\'approbation doit venir d\\'une autre personne (RG-GOV-04).' | t }}</div>
       }
       @if (v().version.lifecycleStatus === 'published') { <div class="alert info small">{{ 'Version publiée : déployez-la depuis l\\'administration des e-Services.' | t }}</div> }
@@ -70,6 +70,8 @@ export class OngletPublication {
   protected readonly auth = inject(AuthService);
   protected readonly d = DROITS;
   readonly v = input.required<VersionComplete>();
+  /** L'utilisateur a soumis cette version : il ne peut pas l'approuver (séparation des tâches, RG-GOV-04). */
+  protected readonly auteur = computed(() => this.v().version.submittedBy === this.auth.utilisateur()?.username);
   readonly actualiser = output<void>();
   protected readonly constats = signal<Constat[]>([]);
   protected readonly journal = signal<Evenement[]>([]);

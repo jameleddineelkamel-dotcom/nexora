@@ -73,7 +73,7 @@ import { MessageDrawer } from './message-drawer';
           <div class="card pad">
             <div class="card-title"><nx-icon name="file" /><h2>{{ 'Formulaire' | t }}</h2>
               @if (x.dossier.requestNature === 'AMENDMENT') { <span class="chip warn">{{ 'Valeurs modifiées surlignées' | t }}</span> }</div>
-            <nx-formulaire [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature"
+            <nx-formulaire [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature" [typeDemande]="x.dossier.requestType"
               [lectureSeule]="!x.canEdit" [sectionsMasquees]="x.canEdit ? ['INSTRUCTION'] : []" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)" />
             @if (x.canEdit && !brouillon()) {
               <div class="row"><button class="btn" (click)="sauver()" [disabled]="occupe()"><nx-icon name="save" /> {{ 'Enregistrer les compléments' | t }}</button></div>

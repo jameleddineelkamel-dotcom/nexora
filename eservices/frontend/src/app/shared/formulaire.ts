@@ -117,6 +117,8 @@ export class FormulaireDynamique {
   readonly donnees = input.required<Donnees>();
   readonly precedent = input<Donnees | null>(null);
   readonly nature = input('INITIAL');
+  /** Type de demande : les champs conditionnés « typeDemande in (…) » ne s'affichent que pour ces types. */
+  readonly typeDemande = input<string | null>(null);
   readonly lectureSeule = input(false);
   /** Sections non affichées (ex. INSTRUCTION, saisie par l'organisme instructeur, absente du formulaire du demandeur). */
   readonly sectionsMasquees = input<string[]>([]);
@@ -134,9 +136,16 @@ export class FormulaireDynamique {
     queueMicrotask(() => { if (!this.onglet() && this.sections().length) this.onglet.set(this.sections()[0].code); });
   }
 
+  private applicable(f: Field): boolean {
+    const m = /^\s*typeDemande\s+in\s*\(([^)]*)\)\s*$/i.exec(f.conditionText ?? '');
+    const t = this.typeDemande();
+    return !m || !t || m[1].split(',').map(x => x.trim().replace(/'/g, '').toUpperCase()).includes(t.toUpperCase());
+  }
+
   protected champs(section: string): Field[] {
     const st = this.form().settings;
     return this.form().fields.filter(f => f.sectionCode === section).filter(f => {
+      if (!this.applicable(f)) return false;
       if (f.code === st.renewalYearField) return this.nature() === 'RENEWAL';
       if (f.code === st.previousField) return this.nature() !== 'INITIAL';
       return true;

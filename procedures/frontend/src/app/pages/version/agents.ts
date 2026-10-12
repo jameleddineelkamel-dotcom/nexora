@@ -34,8 +34,11 @@ import { Icon } from '../../shared/icon';
 
     <div class="card pad stack">
       <div class="between"><div class="card-title"><nx-icon name="inbox" /><h2>{{ 'Propositions à revoir ({0})' | t: enAttente().length }}</h2></div>
+        @if (modifiable() && enAttenteType() > 0) { <button class="btn sm primary" (click)="accepterType()"><nx-icon name="check" [size]="15" /> {{ 'Accepter les {0} propositions « {1} »' | t: enAttenteType() : filtre() }}</button> }
         @if (modifiable() && mappings() > 0) { <button class="btn sm" (click)="accepterMappings()"><nx-icon name="check" [size]="15" /> {{ 'Accepter les rapprochements SCRDM (confiance ≥ 0,8)' | t }}</button> }</div>
-      <div class="row filtres">@for (k of types(); track k) { <button class="btn sm" [class.primary]="filtre() === k" (click)="filtre.set(filtre() === k ? '' : k)">{{ k }}</button> }</div>
+      @if (info()) { <div class="alert ok">{{ info() }}</div> }
+      <div class="row filtres">@for (k of types(); track k) { <button class="btn sm" [class.primary]="filtre() === k" (click)="filtre.set(filtre() === k ? '' : k)">{{ k }} ({{ enAttenteDe(k) }})</button> }</div>
+      @if (!filtre() && enAttente().length > 0) { <p class="muted small">{{ 'Choisissez un type pour revoir et accepter ses propositions en une fois (ex. SECTION, FIELD, REQUEST_TYPE pour le formulaire).' | t }}</p> }
       @for (p of visibles(); track p.id) {
         <div class="prop" [class.faite]="p.reviewStatus !== 'pending'">
           <div class="between"><div><span class="chip ia">{{ p.kind }}</span> <b>{{ p.title }}</b></div>
@@ -110,6 +113,7 @@ export class OngletAgents {
   protected readonly commentaires = signal<Record<number, string>>({});
   protected readonly occupe = signal(false);
   protected readonly erreur = signal<string | null>(null);
+  protected readonly info = signal<string | null>(null);
   protected readonly enAttente = computed(() => this.propositions().filter(p => p.reviewStatus === 'pending'));
   protected readonly types = computed(() => [...new Set(this.propositions().map(p => p.kind))].sort());
   protected readonly visibles = computed(() => this.propositions().filter(p => !this.filtre() || p.kind === this.filtre()));
@@ -165,6 +169,24 @@ export class OngletAgents {
     }
     this.api.revoir(p.id, d, this.commentaires()[p.id] ?? '', payload).subscribe({
       next: () => { this.correction.set(null); this.charger(); this.actualiser.emit(); },
+      error: e => this.erreur.set(erreurs(e).join(' ')),
+    });
+  }
+
+  /** Propositions en attente du type filtré (hors constats informatifs). */
+  protected readonly enAttenteType = computed(() => ['', 'FINDING', 'REPORT'].includes(this.filtre()) ? 0
+    : this.enAttente().filter(p => p.kind === this.filtre()).length);
+
+  protected enAttenteDe(k: string): number {
+    return this.enAttente().filter(p => p.kind === k).length;
+  }
+
+  /** Accepte en une fois les propositions en attente du type filtré (revue humaine en masse, tracée). */
+  protected accepterType(): void {
+    const k = this.filtre();
+    if (!confirm(this.i18n.t('Accepter les {0} propositions « {1} » ? Elles seront appliquées à la version.', this.enAttenteType(), k))) return;
+    this.api.accepterTout(this.v().version.id, k, 0).subscribe({
+      next: r => { this.info.set(this.i18n.t('{0} proposition(s) « {1} » acceptée(s).', r.accepted, k)); this.charger(); this.actualiser.emit(); },
       error: e => this.erreur.set(erreurs(e).join(' ')),
     });
   }

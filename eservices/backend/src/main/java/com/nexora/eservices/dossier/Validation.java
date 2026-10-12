@@ -53,7 +53,7 @@ public class Validation {
         Set<String> repetees = new HashSet<>();
         p.sections().stream().filter(Paquet.Section::repeating).forEach(s -> repetees.add(s.code()));
         for (Paquet.Field f : p.fields()) {
-            if (repetees.contains(f.sectionCode()) || INSTRUCTION.equals(f.sectionCode())) continue;
+            if (repetees.contains(f.sectionCode()) || INSTRUCTION.equals(f.sectionCode()) || !applicable(f, type)) continue;
             controler(f, donnees.get(f.code()), e, null, lieux, liste);
         }
         for (Paquet.Section s : p.sections()) {
@@ -65,7 +65,7 @@ public class Validation {
             for (Object ligne : lignes) {
                 n++;
                 Map<?, ?> m = ligne instanceof Map<?, ?> x ? x : Map.of();
-                for (Paquet.Field f : p.champsDe(s.code())) controler(f, m.get(f.code()), e, n, lieux, liste);
+                for (Paquet.Field f : p.champsDe(s.code())) if (applicable(f, type)) controler(f, m.get(f.code()), e, n, lieux, liste);
             }
         }
         for (Paquet.RequiredDocument d : p.documents()) {
@@ -74,6 +74,20 @@ public class Validation {
             if (!pieces.contains(d.code())) e.add(new Erreur(d.code(), "Pièce obligatoire manquante : " + d.code() + " — " + d.labelFr() + ".", null));
         }
         return e;
+    }
+
+    private static final Pattern CONDITION_TYPE = Pattern.compile("^\\s*typeDemande\\s+in\\s*\\(([^)]*)\\)\\s*$", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Champ applicable au type de demande : condition « typeDemande in (A, B) » (champ propre à certaines variantes du
+     * formulaire, ex. médicaments) ; sans condition de ce type, le champ s'applique à tous les types.
+     */
+    public static boolean applicable(Paquet.Field f, String type) {
+        if (f.conditionText() == null || type == null) return true;
+        java.util.regex.Matcher m = CONDITION_TYPE.matcher(f.conditionText());
+        if (!m.matches()) return true;
+        for (String t : m.group(1).split(",")) if (t.strip().replace("'", "").equalsIgnoreCase(type)) return true;
+        return false;
     }
 
     /**

@@ -99,4 +99,8 @@ export const EN: Record<string, string> = {
   'Élément racine': 'Root element', 'Émetteur': 'Sender', 'Agents IA ': 'AI agents', 'Revue': 'Review', 'Approbation': 'Approval', 'Publication': 'Publication', 'Déploiement': 'Deployment',
   'Rechercher les propriétés': 'Search properties', 'Catalogue des ABIE': 'ABIE catalogue', 'Aucune propriété ne correspond.': 'No matching property.', 'ABIE': 'ABIE', 'Niveau': 'Level', 'racine': 'root', 'Chargement…': 'Loading…',
   'Aucun ABIE ne correspond ; « Rechercher les propriétés » cherche aussi dans les BBIE et ASBIE.': 'No matching ABIE; “Search properties” also searches BBIEs and ASBIEs.',
+  "Accepter les {0} propositions « {1} »": "Accept the {0} « {1} » proposals",
+  "Accepter les {0} propositions « {1} » ? Elles seront appliquées à la version.": "Accept the {0} « {1} » proposals? They will be applied to the version.",
+  "{0} proposition(s) « {1} » acceptée(s).": "{0} « {1} » proposal(s) accepted.",
+  "Choisissez un type pour revoir et accepter ses propositions en une fois (ex. SECTION, FIELD, REQUEST_TYPE pour le formulaire).": "Choose a type to review and accept its proposals at once (e.g. SECTION, FIELD, REQUEST_TYPE for the form).",
 };

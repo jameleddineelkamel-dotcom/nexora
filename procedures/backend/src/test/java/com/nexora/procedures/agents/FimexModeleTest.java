@@ -240,7 +240,12 @@ class FimexModeleTest {
         for (String x : dm) modeles.add(ModeleDonnees.lire(x, Files.readAllBytes(dl.resolve(x))));
         System.out.println("DM eForce : " + modeles.getFirst().entites().keySet() + " ; relations " + modeles.getFirst().relations().size());
         VersionComplete di = new VersionComplete(fimex.version(), new Procedure("DI", "Déclaration Importation", null, "TRANSACTION", null, null, true, null, null),
-                List.of(), List.of(), fimex.statuses(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, null, List.of());
+                List.of(), List.of(), fimex.statuses(),
+                // Socle du gabarit : identification dans « Informations générales »
+                List.of(new Section("IDENTITE", "Informations générales", "General information", false, 0, 20)),
+                List.of(new Field("taxIdentifier", "IDENTITE", "Numéro d'identification unique (NIU)", null, "TEXT", 35, null, "OUI", null, null, null, "3039", null,
+                        null, null, "exchangedDocument/sender/taxRegistration/id", true, "niu", false, null, null, 10)),
+                List.of(), List.of(), List.of(), List.of(), null, null, List.of());
         List<Agents.Proposition> props = new ArrayList<>();
         String resume = ImportDonnees.proposer(modeles, List.of(Maquette.lire(Files.readString(html))), di, null, props);
         System.out.println("DI : " + resume);
@@ -254,6 +259,14 @@ class FimexModeleTest {
         assertEquals("niu", champs.get("taxIdentifier").get("prefill"));
         assertTrue(props.stream().anyMatch(p -> p.kind().equals("SECTION") && Boolean.TRUE.equals(p.payload().get("repeating"))), "marchandises répétitives");
         assertTrue(props.stream().filter(p -> p.kind().equals("REQUEST_TYPE")).count() >= 4, "variantes classique, médicaments, groupage…");
+        // Le NIU du gabarit est déplacé dans le bloc Importateur de la maquette ; la section du gabarit passe après
+        assertEquals("IMPORTATEUR", champs.get("taxIdentifier").get("sectionCode"));
+        assertTrue(props.stream().anyMatch(p -> p.kind().equals("SECTION") && p.target().equals("IDENTITE") && ((Number) p.payload().get("sortOrder")).intValue() >= 500));
+        // Champ propre à une variante : condition sur le type de demande, plus d'« Uniquement pour »
+        assertTrue(champs.values().stream().anyMatch(c -> Objects.toString(c.get("conditionText"), "").startsWith("typeDemande in (")));
+        assertTrue(champs.values().stream().noneMatch(c -> Objects.toString(c.get("helpFr"), "").contains("Uniquement pour")));
+        props.stream().filter(p -> p.kind().equals("FIELD") && p.payload().get("conditionText") != null).limit(4)
+                .forEach(p -> System.out.println("  condition : " + p.payload().get("labelFr") + " → " + p.payload().get("conditionText")));
     }
 
     @Test

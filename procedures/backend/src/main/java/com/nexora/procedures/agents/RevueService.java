@@ -152,11 +152,14 @@ public class RevueService {
                     int ordre = sections.stream().mapToInt(Section::sortOrder).max().orElse(0) + 10;
                     sections.add(new Section(section, Objects.toString(p.get("sectionLabelFr"), section), null, false, 0, ordre));
                 }
+                // Un champ mis à jour garde son chemin SCRDM (rapprochement déjà revu) si la proposition n'en apporte pas
+                String biePrecedent = repo.champs(id).stream().filter(f -> f.code().equals(texte(p, "code"))).map(Field::biePath).filter(Objects::nonNull)
+                        .findFirst().orElse(null);
                 List<Field> champs = new ArrayList<>(repo.champs(id).stream().filter(f -> !f.code().equals(texte(p, "code"))).toList());
                 champs.add(new Field(texte(p, "code"), section, texte(p, "labelFr"), texte(p, "labelEn"), Objects.toString(p.get("dataType"), "TEXT"),
                         p.get("maxLength") == null ? null : entier(p, "maxLength"), texte(p, "pattern"), Objects.toString(p.get("mandatory"), "NON"),
                         texte(p, "conditionText"), texte(p, "refdataTable"), valeursLocales(p.get("codeValues")), texte(p, "untdedRef"),
-                        texte(p, "wcoRef"), texte(p, "cclDen"), texte(p, "cclUid"), null,
+                        texte(p, "wcoRef"), texte(p, "cclDen"), texte(p, "cclUid"), texte(p, "biePath") != null ? texte(p, "biePath") : biePrecedent,
                         Boolean.TRUE.equals(p.get("searchable")), texte(p, "prefill"), !Boolean.FALSE.equals(p.get("amendable")), texte(p, "helpFr"), null,
                         entier(p, "sortOrder")));
                 repo.formulaire(id, sections, champs);

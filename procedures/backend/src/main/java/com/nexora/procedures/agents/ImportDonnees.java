@@ -54,16 +54,19 @@ final class ImportDonnees {
     private final List<String> constats = new ArrayList<>();
     private final Map<String, String> libelles = new HashMap<>(), sectionDe = new HashMap<>();
     private final Set<String> repetitives = new HashSet<>();
+    private final Map<String, Field> existants = new HashMap<>();
+    private final Map<String, Section> sectionsExistantes = new LinkedHashMap<>();
+    /** Variante de l'écran → code du type de demande. */
+    private final Map<String, String> typeDeVariante = new HashMap<>();
 
     private ImportDonnees(List<ModeleDonnees> modeles, VersionComplete v, Referentiel referentiel, List<Proposition> props) {
         this.modeles = modeles;
         this.v = v;
         this.referentiel = referentiel;
         this.props = props;
-        v.fields().forEach(f -> codes.add(f.code()));
-        v.sections().forEach(s -> sections.add(s.code()));
-        ordreChamp = v.fields().stream().mapToInt(Field::sortOrder).max().orElse(0);
-        ordreSection = v.sections().stream().mapToInt(Section::sortOrder).max().orElse(0);
+        // Le formulaire suit l'ordre de la source : les champs et sections déjà présents sont mis à jour (déplacés, renommés)
+        v.fields().forEach(f -> existants.put(f.code(), f));
+        v.sections().forEach(x -> sectionsExistantes.put(x.code(), x));
     }
 
     /** Ajoute les propositions ; renvoie le résumé. */
@@ -140,6 +143,7 @@ final class ImportDonnees {
             }
         Set<String> variantesN = new HashSet<>();
         variantes.forEach(x -> variantesN.add(DocumentAgent.normaliser(x)));
+        for (String x : variantes) typeDeVariante.put(x, codeType(x));
 
         // Blocs et champs : union des variantes, en retenant les variantes où chaque champ apparaît
         Map<String, Maquette.Bloc> blocs = new LinkedHashMap<>();
@@ -170,13 +174,27 @@ final class ImportDonnees {
             for (Maquette.Champ c : liste.values()) {
                 total++;
                 Set<String> ou = presence.getOrDefault(b.getKey() + "|" + DocumentAgent.normaliser(c.libelle()), Set.of());
-                String restriction = !variantes.isEmpty() && ou.size() < variantes.size() ? "Uniquement pour : " + String.join(", ", ou) + "." : null;
+                // Champ propre à certaines variantes : affiché et exigé seulement pour leurs types de demande
+                String restriction = !variantes.isEmpty() && ou.size() < variantes.size()
+                        ? "typeDemande in (" + String.join(", ", ou.stream().map(typeDeVariante::get).distinct().toList()) + ")" : null;
                 Source s = rapprocher(c.libelle(), sources);
                 if (s != null) rapproches++;
                 champ(section, c, s, partie, restriction, "Maquette « " + ecrans.getFirst().titre() + " », bloc « " + bloc.titre() + " »");
             }
         }
         if (!variantes.isEmpty()) typesDemande(variantes, "Variantes de l'écran « " + principal.getKey() + " »");
+        // Sections de la version absentes de la maquette (ex. gabarit) : placées après celles de l'écran
+        for (Section x : sectionsExistantes.values()) {
+            if (sections.contains(x.code())) continue;
+            ordreSection += 10;
+            int ordre = 500 + ordreSection;
+            if (x.sortOrder() >= 500) continue;
+            props.add(new Proposition("SECTION", x.code(), "Section « " + x.labelFr() + " » placée après les blocs de la maquette",
+                    new LinkedHashMap<>(Map.of("code", x.code(), "labelFr", x.labelFr(), "labelEn", Objects.toString(x.labelEn(), x.labelFr()), "repeating", x.repeating(),
+                            "minRows", x.minRows(), "sortOrder", ordre)),
+                    "Le formulaire suit l'ordre de la maquette ; cette section n'y figure pas (ses champs éventuellement repris par la maquette y ont été déplacés).",
+                    x.labelFr(), "generation", 0.8));
+        }
         return "depuis la maquette « " + principal.getKey() + " » (" + ecrans.size() + " variante(s)) : " + rapproches + " / " + total
                 + " rapproché(s) d'un attribut du modèle de données" + (modeles.isEmpty() ? "" : " (" + String.join(", ", modeles.stream().map(ModeleDonnees::nom).toList()) + ")");
     }
@@ -253,6 +271,8 @@ final class ImportDonnees {
         if (repetitive) repetitives.add(code);
         if (sections.add(code)) {
             ordreSection += 10;
+            Section ex = sectionsExistantes.get(code);
+            if (ex != null && ex.labelFr().equals(titre) && ex.repeating() == repetitive && ex.sortOrder() == ordreSection) return code;
             props.add(new Proposition("SECTION", code, "Section « " + titre + " »" + (repetitive ? " (répétitive)" : ""),
                     new LinkedHashMap<>(Map.of("code", code, "labelFr", titre, "labelEn", titre, "repeating", repetitive, "minRows", repetitive ? Math.max(minimum, 0) : 0,
                             "sortOrder", ordreSection)),
@@ -331,7 +351,8 @@ final class ImportDonnees {
         p.put("dataType", type);
         p.put("maxLength", type.equals("TEXT") || type.equals("CODE") && table == null ? longueur : null);
         p.put("pattern", format);
-        p.put("mandatory", obligatoire && restriction == null ? "OUI" : "NON");
+        p.put("mandatory", obligatoire ? "OUI" : "NON");
+        p.put("conditionText", restriction);
         p.put("refdataTable", table);
         p.put("codeValues", valeurs);
         p.put("untdedRef", a == null ? null : a.untded());
@@ -343,16 +364,43 @@ final class ImportDonnees {
         p.put("amendable", prerempli == null);
         String aide = Objects.toString(c == null ? null : c.aide(), "");
         if (calcule) aide = (aide + " Valeur calculée : règle de calcul à écrire (DRL).").strip();
-        if (restriction != null) aide = (aide + " " + restriction).strip();
         p.put("helpFr", aide.isBlank() ? (a == null || a.description().isBlank() ? null : tronquer(a.description(), 250)) : tronquer(aide, 250));
         p.put("sortOrder", ordreChamp);
         String justification = origine + (s != null ? " ; attribut " + s.modele().nom() + " › " + s.entite().nom() + "." + a.code()
                 + (a.format() == null || a.format().isBlank() ? "" : " (" + a.format() + ")") + (liste == null ? "" : ", liste " + liste + (table != null && !liste.contains(table) ? " → " + table : ""))
                 + (a.den() == null ? "" : ", DEN « " + a.den() + " »") : " ; aucun attribut du modèle de données ne correspond : type déduit de la maquette")
                 + (prerempli != null ? " ; pré-rempli depuis le registre des opérateurs (" + prerempli[0] + ")." : ".");
-        props.add(new Proposition("FIELD", code, "Champ « " + libelle + " » (" + type + (table != null ? " " + table : "") + ", section " + section + ")", p,
+        // Champ déjà présent dans la version (gabarit, import précédent) : mis à jour à sa place dans la maquette, en gardant
+        // ce que la source n'apporte pas (pré-remplissage, liste, références, aide)
+        Field ex = existants.get(code);
+        String titre = "Champ « " + libelle + " » (" + type + (table != null ? " " + table : "") + ", section " + section + ")";
+        if (ex != null) {
+            if (p.get("prefill") == null) p.put("prefill", ex.prefill());
+            if (p.get("refdataTable") == null && ex.refdataTable() != null) { p.put("refdataTable", ex.refdataTable()); p.put("dataType", ex.dataType()); }
+            for (String k : List.of("untdedRef", "wcoRef", "cclDen", "cclUid")) if (p.get(k) == null) p.put(k, switch (k) {
+                case "untdedRef" -> ex.untdedRef(); case "wcoRef" -> ex.wcoRef(); case "cclDen" -> ex.cclDen(); default -> ex.cclUid(); });
+            if (p.get("helpFr") == null) p.put("helpFr", ex.helpFr());
+            boolean identique = ex.sectionCode().equals(section) && ex.labelFr().equals(libelle) && ex.sortOrder() == ordreChamp
+                    && Objects.equals(ex.mandatory(), p.get("mandatory")) && Objects.equals(ex.conditionText(), restriction) && Objects.equals(ex.dataType(), p.get("dataType"));
+            if (identique) return;
+            boolean deplace = !ex.sectionCode().equals(section);
+            titre = "Champ « " + libelle + " » " + (deplace ? "déplacé de « " + ex.sectionCode() + " » vers « " + section + " »" : "mis à jour (section " + section + ")");
+            justification = justification + " Champ existant : " + (deplace ? "placé dans le bloc de la maquette ; " : "")
+                    + "ordre, libellé, obligation et condition alignés sur la maquette ; pré-remplissage, liste, références et chemin SCRDM conservés.";
+        }
+        props.add(new Proposition("FIELD", code, titre, p,
                 justification, c != null ? c.libelle() + (c.format() == null ? "" : " [" + c.format() + "]") : a.code() + " — " + a.libelle(),
                 "extraction", s != null ? 0.85 : 0.65));
+    }
+
+    /** Code du type de demande d'une variante : type existant de même libellé, sinon premier mot significatif. */
+    private String codeType(String libelle) {
+        String n = DocumentAgent.normaliser(libelle);
+        for (RequestType t : v.requestTypes()) if (DocumentAgent.normaliser(t.labelFr()).equals(n)) return t.code();
+        List<String> mots = new ArrayList<>();
+        for (String m : n.split("\\s+")) if (m.length() > 2 && !Set.of("des", "les", "importation", "exportation").contains(m)) mots.add(m);
+        String code = (mots.isEmpty() ? "STD" : mots.getFirst()).toUpperCase(Locale.ROOT);
+        return code.length() > 10 ? code.substring(0, 10) : code;
     }
 
     private void typesDemande(List<String> variantes, String origine) {
@@ -367,10 +415,7 @@ final class ImportDonnees {
         Set<String> pris = new HashSet<>();
         int rang = 0;
         for (String libelle : variantes) {
-            List<String> mots = new ArrayList<>();
-            for (String m : DocumentAgent.normaliser(libelle).split("\\s+")) if (m.length() > 2 && !Set.of("des", "les", "importation", "exportation").contains(m)) mots.add(m);
-            String code = (mots.isEmpty() ? "STD" : mots.getFirst()).toUpperCase(Locale.ROOT);
-            if (code.length() > 10) code = code.substring(0, 10);
+            String code = codeType(libelle);
             if (!pris.add(code)) continue;
             String cur = prefixe + code.charAt(0);
             rang += 10;
