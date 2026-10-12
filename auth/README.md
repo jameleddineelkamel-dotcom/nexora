@@ -32,6 +32,23 @@ avec le mot de passe `AUTH_ADMIN_PASSWORD`. Changez-le ensuite depuis *Mon compt
 | `refdata.api` — onglet API & SQL | ✔ | | |
 | `auth.administration` — console d'administration des accès | ✔ | | |
 
+### Guichet unique (migration `V2__guichet_unique.sql`)
+
+| Rôle | Droits | Groupe livré |
+|---|---|---|
+| Concepteur de procédures | `procedures.lire`, `procedures.modeliser`, `refdata.lire` | Concepteurs de procédures |
+| Approbateur de procédures | `procedures.lire`, `procedures.approuver`, `procedures.publier`, `refdata.lire` | — |
+| Opérateur économique | `eservices.deposer` | Opérateurs économiques |
+| Commissionnaire agréé (CDA) | `eservices.deposer`, `eservices.mandataire`, `registration.lire` | Commissionnaires agréés en douane |
+| Agent de traitement | `eservices.traiter`, `registration.lire` | MINCOMMERCE — agents de traitement |
+| Agent signataire | `eservices.signer`, `registration.lire`, `registration.completer` | MINCOMMERCE — signataires |
+| Superviseur | `eservices.superviser`, `registration.lire`, `procedures.lire` | — |
+| Banque | `eservices.encaisser` | Banques partenaires |
+| Administrateur e-Services | `eservices.administrer`, `eservices.superviser`, `procedures.lire`, `registration.lire`, `registration.gerer`, `refdata.lire` | — |
+
+Le portail n'affiche à l'utilisateur que les applications pour lesquelles il détient au moins un droit. Comptes de test
+(développement) : `..\database\creer-comptes-test.cmd`.
+
 Groupes : *Administrateurs*, *Gestionnaires du référentiel*, *Consultants*. Les rôles d'un groupe sont hérités
 par ses membres ; un rôle peut aussi être attribué directement. La matrice rôles × droits se modifie dans
 **Administration → Rôles et habilitations** (effet à la prochaine connexion).

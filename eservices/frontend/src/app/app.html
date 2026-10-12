@@ -1,0 +1,76 @@
+@if (auth.publique() && !auth.utilisateur()) {
+  <div class="public"><router-outlet /></div>
+} @else {
+<div class="shell" [class.menu-ouvert]="menuOuvert()">
+  <aside class="sidebar">
+    <a routerLink="/" class="marque" (click)="menuOuvert.set(false)">
+      <img src="nexora-logo.webp" alt="NEXORA — AI-powered Trade Digital Platform" />
+    </a>
+    <div class="module">
+      <span class="pastille"><nx-icon name="landmark" [size]="15" /></span>
+      <div><b>{{ 'e-Services · guichet unique' | t }}</b><span>{{ 'Microservice eservices' | t }}</span></div>
+    </div>
+    <nav>
+      @for (g of nav(); track g.titre) {
+        @if (g.titre) { <span class="groupe">{{ g.titre | t }}</span> }
+        @for (n of g.liens; track n.lien) {
+          <a [routerLink]="n.lien" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: !!n.exact }" (click)="menuOuvert.set(false)">
+            <nx-icon [name]="n.icone" /> {{ n.libelle | t }}
+          </a>
+        }
+      }
+    </nav>
+    <div class="plateforme">
+      <span class="label">{{ 'Plateforme NEXORA' | t }}</span>
+      <span class="ms on"><i></i> {{ 'e-Services' | t }}</span>
+      @for (p of plateforme(); track p.libelle) {
+        @if (p.url && accessible(p.droit)) { <a class="ms lien" [href]="p.url"><i></i> {{ p.libelle | t }}</a> }
+        @else { <span class="ms on"><i></i> {{ p.libelle | t }}</span> }
+      }
+    </div>
+  </aside>
+  <div class="voile" (click)="menuOuvert.set(false)"></div>
+
+  <div class="principal">
+    <header class="topbar">
+      <button class="btn icon ghost burger" (click)="menuOuvert.set(!menuOuvert())" [attr.aria-label]="'Menu' | t"><nx-icon name="grid" /></button>
+      <form class="recherche" (submit)="$event.preventDefault(); chercher()">
+        <nx-icon name="search" />
+        <input [value]="recherche()" (input)="recherche.set($any($event.target).value)" [placeholder]="'CUR, NIU ou raison sociale…' | t" />
+      </form>
+      <div class="grow"></div>
+      <div class="langues" role="group" [attr.aria-label]="'Langue' | t">
+        @for (l of langues; track l.code) {
+          <button class="btn sm" [class.on]="i18n.langue() === l.code" (click)="i18n.langue.set(l.code)" [title]="l.libelle">{{ l.code.toUpperCase() }}</button>
+        }
+      </div>
+      <button class="btn icon ghost" (click)="session.basculerTheme()" [attr.aria-label]="(session.theme() === 'light' ? 'Mode sombre' : 'Mode clair') | t">
+        <nx-icon [name]="session.theme() === 'light' ? 'moon' : 'sun'" />
+      </button>
+      @if (auth.utilisateur(); as u) {
+        <div class="compte">
+          <button class="utilisateur" (click)="menuCompte.set(!menuCompte())" [attr.aria-expanded]="menuCompte()" [attr.aria-label]="'Mon compte' | t">
+            <span class="avatar">{{ initiales() }}</span><span class="nom">{{ u.name }}</span>
+          </button>
+          @if (menuCompte()) {
+            <div class="voile-menu" (click)="menuCompte.set(false)"></div>
+            <div class="menu-compte card" role="menu">
+              <div class="entete-compte">
+                <span class="avatar grand">{{ initiales() }}</span>
+                <div><b>{{ u.name }}</b><span class="muted small">{{ u.username }}@if (u.email) { · {{ u.email }} }</span></div>
+              </div>
+              <div class="roles">@for (r of u.roles; track r) { <span class="chip accent">{{ libelleRole(r) | t }}</span> }</div>
+              <a class="item" [href]="auth.compte()" role="menuitem"><nx-icon name="user" /> {{ 'Mon compte et mot de passe' | t }}</a>
+              @if (auth.a('auth.administration')) {
+                <a class="item" [href]="auth.administration()" role="menuitem"><nx-icon name="landmark" /> {{ 'Administration des accès' | t }}</a>
+              }
+              <button class="item danger" (click)="auth.deconnecter()" role="menuitem"><nx-icon name="back" /> {{ 'Se déconnecter' | t }}</button>
+            </div>
+          }
+        </div>
+      }
+    </header>
+    <main><router-outlet /></main>
+  </div>
+</div>
+}

@@ -1,0 +1,62 @@
+import { Component, inject, signal } from '@angular/core';
+import { Api, Bie } from '../core/api';
+import { I18N } from '../core/i18n';
+import { erreurs } from '../core/session';
+import { Icon } from '../shared/icon';
+
+/** Dictionnaire du Supply Chain Reference Data Model UN/CEFACT D23B : recherche, ABIE et chemins depuis le message maître. */
+@Component({
+  selector: 'nx-dictionnaire',
+  imports: [Icon, ...I18N],
+  template: `
+    <div class="page-head"><div><h1>{{ 'Dictionnaire SCRDM' | t }}</h1>
+      @if (resume(); as r) { <p class="muted">UN/CEFACT {{ r.family }} {{ r.release }} — {{ '{0} ABIE, {1} BBIE, {2} ASBIE' | t: r.abies : r.bbies : r.asbies }}</p> }</div></div>
+    <div class="card pad row"><nx-icon name="search" />
+      <input class="input grow" [value]="q()" (input)="q.set($any($event.target).value)" (keydown.enter)="chercher()" [placeholder]="'Nom normalisé (DEN), propriété ou définition…' | t" />
+      <button class="btn" (click)="chercher()">{{ 'Rechercher' | t }}</button></div>
+    @if (erreur()) { <div class="alert err">{{ erreur() }}</div> }
+    <div class="grid k2">
+      <div class="card scroll-x">
+        <table class="datagrid"><thead><tr><th>DEN</th><th>{{ 'Type' | t }}</th><th>{{ 'Card.' | t }}</th></tr></thead>
+          <tbody>@for (b of resultats(); track b.abie + b.property) {
+            <tr (click)="ouvrir(b.abie)"><td><b>{{ b.den }}</b><div class="muted small mono">{{ b.abie }}/{{ b.property }}</div></td><td>{{ b.kind }}</td><td>{{ b.cardinality }}</td></tr>
+          } @empty { <tr><td colspan="3" class="empty small">{{ 'Lancez une recherche (ex. consignment gross weight).' | t }}</td></tr> }</tbody></table>
+      </div>
+      @if (abie(); as a) {
+        <div class="card pad stack">
+          <h2>{{ a.abie.den }}</h2><p class="muted small">{{ a.abie.definition }}</p>
+          <h3>{{ 'Chemins depuis la racine' | t }}</h3>
+          @for (p of a.paths; track p) { <code class="chemin">{{ p }}</code> } @empty { <span class="muted small">{{ 'Racine du message maître.' | t }}</span> }
+          <h3>{{ 'Propriétés' | t }}</h3>
+          <div class="props">@for (b of a.properties; track b.property) {
+            <div class="prop"><span class="chip" [class.info]="b.kind === 'ASBIE'">{{ b.kind }}</span> <b class="mono small">{{ b.property }}</b> <span class="muted small">{{ b.cardinality }}</span>
+              @if (b.target) { <button class="btn sm ghost" (click)="ouvrir(b.target)">→ {{ b.target }}</button> }
+              <div class="muted small">{{ b.den }}</div></div>
+          }</div>
+        </div>
+      }
+    </div>
+  `,
+  styles: [`:host { display: flex; flex-direction: column; gap: 16px; } .chemin { padding: 5px 8px; background: var(--surface-2); border-radius: 8px; overflow-wrap: anywhere; }
+    .props { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; } .prop { border-bottom: 1px solid var(--line); padding-bottom: 6px; }`],
+})
+export class DictionnairePage {
+  private readonly api = inject(Api);
+  protected readonly q = signal('');
+  protected readonly resultats = signal<Bie[]>([]);
+  protected readonly resume = signal<{ family: string; release: string; abies: number; bbies: number; asbies: number } | null>(null);
+  protected readonly abie = signal<{ abie: { code: string; den: string; definition: string }; properties: Bie[]; paths: string[] } | null>(null);
+  protected readonly erreur = signal<string | null>(null);
+
+  constructor() {
+    this.api.rdm().subscribe({ next: r => this.resume.set(r), error: e => this.erreur.set(erreurs(e).join(' ')) });
+  }
+
+  protected chercher(): void {
+    this.api.rechercherBie(this.q(), 100).subscribe({ next: r => this.resultats.set(r), error: e => this.erreur.set(erreurs(e).join(' ')) });
+  }
+
+  protected ouvrir(code: string): void {
+    this.api.abie(code).subscribe({ next: a => this.abie.set(a), error: e => this.erreur.set(erreurs(e).join(' ')) });
+  }
+}

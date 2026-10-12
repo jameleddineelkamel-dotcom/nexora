@@ -46,8 +46,8 @@ import { MotDePasse } from '../shared/mot-de-passe';
             <h1>{{ 'Bonjour {0}' | t: (utilisateur()?.fullName ?? '') }}</h1>
             <p class="muted">{{ 'Vous êtes connecté. Choisissez une application :' | t }}</p>
             <div class="apps">
-              @for (a of applications(); track a.code) {
-                <a class="app" [href]="a.url"><span class="ic"><nx-icon name="database" /></span><span class="grow"><b>{{ a.label | t }}</b><span class="small muted">{{ a.url }}</span></span><nx-icon name="chevron" /></a>
+              @for (a of applicationsAutorisees(); track a.code) {
+                <a class="app" [href]="a.url"><span class="ic"><nx-icon [name]="icone(a.code)" /></span><span class="grow"><b>{{ a.label | t }}</b><span class="small muted">{{ a.url }}</span></span><nx-icon name="chevron" /></a>
               }
               @if (acces.admin()) {
                 <a class="app" routerLink="/admin"><span class="ic admin"><nx-icon name="landmark" /></span><span class="grow"><b>{{ 'Administration des accès' | t }}</b><span class="small muted">{{ 'Utilisateurs, groupes, rôles, journal' | t }}</span></span><nx-icon name="chevron" /></a>
@@ -110,6 +110,16 @@ export class LoginPage {
       next: c => { if (c) { this.utilisateur.set(c.user); this.continuer(); } else this.etape.set('connexion'); },
       error: () => this.etape.set('connexion'),
     });
+  }
+
+  /** Applications pour lesquelles l'utilisateur détient au moins un droit (« code.xxx »). */
+  protected applicationsAutorisees(): Application[] {
+    const droits = this.utilisateur()?.permissions ?? [];
+    return this.applications().filter(a => droits.some(d => d.startsWith(a.code + '.')));
+  }
+
+  protected icone(code: string): string {
+    return ({ refdata: 'database', registration: 'user', procedures: 'tree', eservices: 'landmark' } as Record<string, string>)[code] ?? 'grid';
   }
 
   protected hote(): string {

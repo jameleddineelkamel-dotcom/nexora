@@ -1,0 +1,146 @@
+package nexora.fimex;
+
+// Règles de la procédure FIMEX (SFD e-GUCE 3G v1.4, MINCOMMERCE) — moteur Drools.
+// Points d'évaluation (agenda-group) : « validation » au dépôt, « frais » pour l'avis de paiement.
+import com.nexora.regles.Demande;
+import com.nexora.regles.Antecedent;
+import com.nexora.regles.Resultat;
+
+global Resultat resultat;
+
+// ------------------------------------------------------------------------------------------------
+// Validation du dépôt (UC-01, UC-02, UC-03)
+// ------------------------------------------------------------------------------------------------
+rule "RG1 - Pas de renouvellement des autorisations spéciales"
+    agenda-group "validation"
+when
+    Demande(typeDemande == "AS", nature == "RENEWAL")
+then
+    resultat.erreur("nature", "Les autorisations spéciales ne font pas l'objet d'un renouvellement (RG1).");
+end
+
+rule "RG4 - Un opérateur ne dépose pas pour un tiers"
+    agenda-group "validation"
+when
+    Demande(mandataire == false, titulaire == false)
+then
+    resultat.erreur("taxIdentifier", "Un importateur ou exportateur ne peut initier la demande que pour lui-même ; seul un CDA peut agir pour un tiers (RG4, RG5).");
+end
+
+rule "RG05 - Année de renouvellement n+1"
+    agenda-group "validation"
+when
+    $d : Demande(nature == "RENEWAL", entier("renewYear") != anneeCourante + 1)
+then
+    resultat.erreur("renewYear", "L'année de renouvellement doit être " + ($d.getAnneeCourante() + 1) + " (RG05).");
+end
+
+rule "RG07 - Un seul renouvellement en cours ou validé par année"
+    agenda-group "validation"
+when
+    $d : Demande(nature == "RENEWAL")
+    $a : Antecedent(typeDemande == $d.typeDemande, nature == "RENEWAL", annee == $d.entier("renewYear"),
+                    statut != "REJETE", statut != "ANNULE")
+then
+    resultat.erreur("renewYear", "Une demande de renouvellement est déjà en cours ou validée pour cette année : " + $a.getDossierNo() + " (RG07).");
+end
+
+rule "UC-01 - Pas de nouvelle inscription si une attestation est valide"
+    agenda-group "validation"
+when
+    $d : Demande(nature == "INITIAL", typeDemande != "AS")
+    $a : Antecedent(typeDemande == $d.typeDemande, titreValide == true || enCours == true)
+then
+    resultat.erreur("requestTypeCode", "Une inscription est déjà valide ou en cours pour ce fichier : " + $a.getDossierNo() + ". Utilisez le renouvellement ou l'amendement.");
+end
+
+rule "UC-03 - L'amendement exige une attestation valide"
+    agenda-group "validation"
+when
+    $d : Demande(nature == "AMENDMENT")
+    not Antecedent(typeDemande == $d.typeDemande, titreValide == true)
+then
+    resultat.erreur("previousRequestNumber", "Un amendement exige une attestation d'inscription valide pour ce type de demande (UC-03).");
+end
+
+rule "UC-02 - Le renouvellement concerne une inscription existante"
+    agenda-group "validation"
+when
+    $d : Demande(nature == "RENEWAL")
+    not Antecedent(typeDemande == $d.typeDemande, statut == "VALIDE")
+then
+    resultat.erreur("previousRequestNumber", "Aucune inscription validée à renouveler pour ce type de demande (UC-02).");
+end
+
+// <generated:pieces> — pièces conditionnelles, régénérées par le Rules Agent à partir des conditions des pièces
+rule "Pièce P7 conditionnelle"
+    agenda-group "validation"
+when
+    Demande(texte("foreignerCitizen") == "E", aPiece("P7") == false)
+then
+    resultat.erreur("P7", "Pièce obligatoire : Agrément à l'exercice de l'activité commerciale pour les étrangers (condition : foreignerCitizen == 'E').");
+end
+// </generated:pieces>
+
+rule "RM1 - Au moins un produit, code SH sur 6 chiffres minimum"
+    agenda-group "validation"
+when
+    Demande(lignes("PRODUITS") == 0)
+then
+    resultat.erreur("PRODUITS", "Ajoutez au moins une marchandise dans l'onglet Produits (RM1).");
+end
+
+rule "Import - pays d'origine des marchandises"
+    agenda-group "validation"
+when
+    $d : Demande(typeDemande in ("IMP", "AS"))
+    $l : java.util.Map(this["countryOfOriginCode"] == null || this["countryOfOriginCode"] == "") from $d.groupe("PRODUITS")
+then
+    resultat.erreur("countryOfOriginCode", "Le pays d'origine est obligatoire pour chaque marchandise importée.");
+end
+
+rule "Export - pays de destination des marchandises"
+    agenda-group "validation"
+when
+    $d : Demande(typeDemande == "EXP")
+    $l : java.util.Map(this["destinationCountryCode"] == null || this["destinationCountryCode"] == "") from $d.groupe("PRODUITS")
+then
+    resultat.erreur("destinationCountryCode", "Le pays de destination est obligatoire pour chaque marchandise exportée.");
+end
+
+// ------------------------------------------------------------------------------------------------
+// Frais (UC-01 / UC-02) : l'amendement n'est pas payant (RG1 UC-03).
+// <generated:frais> — section régénérée par le Rules Agent à partir du tableau des frais
+// ------------------------------------------------------------------------------------------------
+rule "Frais MINCOMMERCE"
+    agenda-group "frais"
+when
+    Demande(typeDemande in ("IMP", "EXP", "AS"), nature in ("INITIAL", "RENEWAL"))
+then
+    resultat.frais("MINCOMMERCE", "MINCOMMERCE", "Quote-part MINCOMMERCE (30 000 FCFA moins la commission GUCE)", 27000);
+end
+
+rule "Frais GUCE"
+    agenda-group "frais"
+when
+    Demande(typeDemande in ("IMP", "EXP", "AS"), nature in ("INITIAL", "RENEWAL"))
+then
+    resultat.frais("GUCE", "GUCE", "Commission GUCE (10 % de la quote-part MINCOMMERCE)", 3000);
+end
+
+rule "Frais CNCC"
+    agenda-group "frais"
+when
+    Demande(typeDemande in ("IMP", "AS"), nature in ("INITIAL", "RENEWAL"))
+then
+    resultat.frais("CNCC", "CNCC", "Conseil National des Chargeurs du Cameroun", 15000);
+end
+
+rule "Frais TIMBRE"
+    agenda-group "frais"
+when
+    Demande(typeDemande in ("IMP", "EXP", "AS"), nature in ("INITIAL", "RENEWAL"))
+then
+    resultat.frais("TIMBRE", "DGI", "Timbre fiscal", 1500);
+end
+// </generated:frais>

@@ -44,4 +44,5 @@ export const EN: Record<string, string> = {
   'Le mot de passe doit compter au moins 10 caractères.': 'The password must be at least 10 characters long.',
   'Le mot de passe doit contenir des lettres et des chiffres.': 'The password must contain letters and digits.',
   "Le nouveau mot de passe doit être différent de l'actuel.": 'The new password must differ from the current one.',
+  'Registre des opérateurs': 'Operator registry', 'Studio des procédures': 'Procedure studio', 'e-Services (guichet unique)': 'e-Services (single window)',
 };

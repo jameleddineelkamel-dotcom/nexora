@@ -89,7 +89,10 @@ export class AdminRoles {
   }
 
   protected droits(app: string): Permission[] { return this.permissions().filter(p => p.application === app); }
-  protected libelleApplication(a: string): string { return a === 'refdata' ? 'Référentiel Commun' : a === 'auth' ? 'Accès et habilitations' : a; }
+  protected libelleApplication(a: string): string {
+    return ({ refdata: 'Référentiel Commun', auth: 'Accès et habilitations', registration: 'Registre des opérateurs', procedures: 'Studio des procédures',
+      eservices: 'e-Services (guichet unique)' } as Record<string, string>)[a] ?? a;
+  }
   protected basculer(r: Role, code: string): void {
     this.brouillon.set(this.brouillon().map(x => x.code !== r.code ? x
       : { ...x, permissions: x.permissions.includes(code) ? x.permissions.filter(p => p !== code) : [...x.permissions, code] }));
