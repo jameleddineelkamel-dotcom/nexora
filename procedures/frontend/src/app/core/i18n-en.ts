@@ -235,4 +235,13 @@ export const EN: Record<string, string> = {
   "Tous": "All",
   "Onglets et accordéons": "Tabs and accordions",
   "Sections en onglets, sous-sections en accordéons (type déclaration EUCDM)": "Sections as tabs, sub-sections as accordions (EUCDM declaration style)",
+  "Cette version est en lecture seule. Les sections, champs, règles et le gabarit se modifient dans la version de travail v{0} ({1}).":
+    "This version is read-only. Sections, fields, rules and the template are edited in working version v{0} ({1}).",
+  "Cette version est en lecture seule : une version publiée est immuable. Pour ajouter, modifier, supprimer ou réordonner sections, sous-sections et champs, créez une nouvelle version (copie de la dernière version) ; elle sera à faire approuver puis publier.":
+    "This version is read-only: a published version is immutable. To add, edit, delete or reorder sections, sub-sections and fields, create a new version (copy of the latest version); it then needs approval and publication.",
+  "Ouvrir la version de travail": "Open the working version",
+  "Créer une nouvelle version": "Create a new version",
+  "brouillon": "draft",
+  "en revue": "in review",
+  "approuvée": "approved",
 };

@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { Api, Partie, VersionComplete } from '../../core/api';
+import { Router, RouterLink } from '@angular/router';
+import { Api, Partie, Version, VersionComplete } from '../../core/api';
 import { AuthService, DROITS } from '../../core/auth.service';
 import { I18N } from '../../core/i18n';
 import { erreurs } from '../../core/session';
@@ -38,6 +38,23 @@ type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'f
             @if (!modifiable()) { <span class="chip">{{ 'Lecture seule' | t }}</span> }</div>
         </div>
       </div>
+      @if (!modifiable() && peutModeliser()) {
+        <div class="alert lecture-seule">
+          <nx-icon name="info" />
+          <div class="grow">
+            @if (travail(); as w) {
+              {{ 'Cette version est en lecture seule. Les sections, champs, règles et le gabarit se modifient dans la version de travail v{0} ({1}).' | t: w.versionNo : (statut(w.lifecycleStatus) | t) }}
+            } @else {
+              {{ 'Cette version est en lecture seule : une version publiée est immuable. Pour ajouter, modifier, supprimer ou réordonner sections, sous-sections et champs, créez une nouvelle version (copie de la dernière version) ; elle sera à faire approuver puis publier.' | t }}
+            }
+          </div>
+          @if (travail(); as w) {
+            <a class="btn primary sm" [routerLink]="['/versions', w.id]">{{ 'Ouvrir la version de travail' | t }}</a>
+          } @else {
+            <button class="btn primary sm" (click)="nouvelle(x.procedure.code)" [disabled]="occupe()"><nx-icon name="plus" [size]="15" /> {{ 'Créer une nouvelle version' | t }}</button>
+          }
+        </div>
+      }
       <div class="tabs">
         @for (o of onglets; track o.code) {
           <button class="tab" [class.on]="onglet() === o.code" (click)="onglet.set(o.code)"><nx-icon [name]="o.icone" [size]="16" /> {{ o.libelle | t }}</button>
@@ -56,11 +73,12 @@ type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'f
       }
     } @else if (!erreur()) { <div class="skeleton" style="height: 260px"></div> }
   `,
-  styles: [`:host { display: flex; flex-direction: column; gap: 14px; } h1 { margin: 4px 0; }`],
+  styles: [`:host { display: flex; flex-direction: column; gap: 14px; } h1 { margin: 4px 0; } .lecture-seule { align-items: center; }`],
 })
 export class VersionPage {
   private readonly api = inject(Api);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   readonly id = input.required<string>();
   protected readonly v = signal<VersionComplete | null>(null);
   protected readonly onglet = signal<Onglet>('general');
@@ -68,6 +86,12 @@ export class VersionPage {
   protected readonly info = signal<string | null>(null);
   protected readonly erreurListe = computed(() => (this.erreur() ?? '').split('\n').filter(Boolean));
   protected readonly modifiable = computed(() => this.v()?.version.lifecycleStatus === 'draft' && this.auth.a(DROITS.modeliser));
+  protected readonly peutModeliser = computed(() => this.auth.a(DROITS.modeliser));
+  /** Autres versions de la procédure : la version de travail (brouillon, en revue, approuvée) s'il y en a une. */
+  private readonly versions = signal<Version[]>([]);
+  protected readonly travail = computed(() => this.versions()
+    .find(x => x.id !== this.v()?.version.id && ['draft', 'in_review', 'approved'].includes(x.lifecycleStatus)) ?? null);
+  protected readonly occupe = signal(false);
   protected readonly onglets: { code: Onglet; libelle: string; icone: string }[] = [
     { code: 'general', libelle: 'Général', icone: 'info' }, { code: 'formulaire', libelle: 'Formulaire et données', icone: 'file' },
     { code: 'messages', libelle: 'Messages et flux', icone: 'mail' }, { code: 'workflow', libelle: 'Workflow BPMN', icone: 'workflow' },
@@ -80,7 +104,28 @@ export class VersionPage {
   }
 
   protected charger(): void {
-    this.api.version(Number(this.id())).subscribe({ next: v => { this.v.set(v); this.erreur.set(null); }, error: e => this.erreur.set(erreurs(e, 'Le studio').join('\n')) });
+    this.api.version(Number(this.id())).subscribe({
+      next: v => {
+        this.v.set(v);
+        this.erreur.set(null);
+        if (v.version.lifecycleStatus !== 'draft' && this.peutModeliser())
+          this.api.procedure(v.procedure.code).subscribe({ next: p => this.versions.set(p.versions), error: () => this.versions.set([]) });
+      },
+      error: e => this.erreur.set(erreurs(e, 'Le studio').join('\n')),
+    });
+  }
+
+  protected statut(s: string): string {
+    return ({ draft: 'brouillon', in_review: 'en revue', approved: 'approuvée' } as Record<string, string>)[s] ?? s;
+  }
+
+  /** Nouvelle version de travail (copie de la dernière version de la procédure), puis ouverture. */
+  protected nouvelle(code: string): void {
+    this.occupe.set(true);
+    this.api.nouvelleVersion(code, '').subscribe({
+      next: v => { this.occupe.set(false); this.router.navigate(['/versions', v.version.id]); },
+      error: e => { this.occupe.set(false); this.erreur.set(erreurs(e).join('\n')); },
+    });
   }
 
   protected enregistrer(partie: Partie, corps: unknown, motif: string): void {
