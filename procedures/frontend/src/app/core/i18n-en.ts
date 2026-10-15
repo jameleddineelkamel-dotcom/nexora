@@ -220,4 +220,10 @@ export const EN: Record<string, string> = {
   "Fournisseur": "Supplier",
   "Intermédiaire": "Intermediary",
   "Autorité": "Authority",
+  "Essai seulement : cette version n'est pas un brouillon, le gabarit ne peut pas être enregistré. Créez une nouvelle version depuis la page de la procédure pour l'appliquer.":
+    "Trial only: this version is not a draft, so the template cannot be saved. Create a new version from the procedure page to apply it.",
+  "Rétablir": "Restore",
+  "Précédent": "Previous",
+  "Suivant": "Next",
+  "Étape {0} sur {1}": "Step {0} of {1}",
 };
