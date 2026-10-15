@@ -8,7 +8,7 @@ import { CodePicker, Localisation } from './widgets';
 type Donnees = Record<string, unknown>;
 type Ligne = Record<string, unknown>;
 type Ihm = { disposition: 'CONTINU' | 'ONGLETS' | 'ETAPES'; colonnes: number | null; densite: 'COMPACTE' | 'NORMALE' | 'AEREE'; libelles: 'DESSUS' | 'COTE';
-  navigation: boolean; repliables: boolean };
+  navigation: boolean; repliables: boolean; sousSections: 'BLOCS' | 'ACCORDEONS'; accordeons: 'AUCUN' | 'PREMIER' | 'TOUS' };
 type Bloc = { s: Section; enfants: Section[] };
 
 /**
@@ -16,7 +16,7 @@ type Bloc = { s: Section; enfants: Section[] };
  * Référentiel Commun, lieux de traitement, localisation intelligente. En amendement, les champs non modifiables sont
  * verrouillés et les valeurs modifiées sont surlignées avec la valeur précédente (RG2 UC-03). Le gabarit d'IHM du studio
  * choisit la disposition (continue, onglets, étapes), le nombre de colonnes, la densité et la position des libellés ;
- * les sous-sections s'affichent à l'intérieur de leur section parente.
+ * les sous-sections s'affichent à l'intérieur de leur section parente, en blocs ou en accordéons.
  */
 @Component({
   selector: 'nx-formulaire',
@@ -53,12 +53,26 @@ type Bloc = { s: Section; enfants: Section[] };
         }
         @if (!replie(b.s.code)) {
           <ng-container *ngTemplateOutlet="corps; context: { s: b.s }" />
-          @for (e of b.enfants; track e.code) {
-            <div class="sous-sec" [id]="ancre(e.code)">
-              <h4 class="sous-titre">{{ e.labelFr | lib: e.labelEn }}
-                @if (e.repeating) { <span class="muted small">· {{ lignes(e.code).length }} {{ 'ligne(s)' | t }}</span> }</h4>
-              <ng-container *ngTemplateOutlet="corps; context: { s: e }" />
-            </div>
+          @for (e of b.enfants; track e.code; let j = $index) {
+            @if (ihm().sousSections === 'ACCORDEONS') {
+              <div class="accordeon" [class.ouvert]="ouvert(e.code, j)" [id]="ancre(e.code)">
+                <button type="button" class="acc-tete" [attr.aria-expanded]="ouvert(e.code, j)" [attr.aria-controls]="ancre(e.code) + '-corps'" (click)="basculerAccordeon(e.code, j)">
+                  <span>{{ e.labelFr | lib: e.labelEn }}</span>
+                  @if (e.repeating) { <span class="muted small">· {{ lignes(e.code).length }} {{ 'ligne(s)' | t }}</span> }
+                  @if (erreursSection(e.code)) { <span class="badge-n">{{ erreursSection(e.code) }}</span> }
+                  <nx-icon name="chevron" [size]="16" class="acc-chevron" />
+                </button>
+                @if (ouvert(e.code, j)) {
+                  <div class="acc-corps" [id]="ancre(e.code) + '-corps'"><ng-container *ngTemplateOutlet="corps; context: { s: e }" /></div>
+                }
+              </div>
+            } @else {
+              <div class="sous-sec" [id]="ancre(e.code)">
+                <h4 class="sous-titre">{{ e.labelFr | lib: e.labelEn }}
+                  @if (e.repeating) { <span class="muted small">· {{ lignes(e.code).length }} {{ 'ligne(s)' | t }}</span> }</h4>
+                <ng-container *ngTemplateOutlet="corps; context: { s: e }" />
+              </div>
+            }
           }
         }
       </section>
@@ -164,6 +178,14 @@ type Bloc = { s: Section; enfants: Section[] };
     /* Sous-sections : à l'intérieur de la section parente */
     .sous-sec { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--accent-soft); scroll-margin-top: 56px; }
     .sous-titre { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text); }
+    /* Sous-sections en accordéons */
+    .accordeon { border-radius: 8px; background: var(--surface-2); scroll-margin-top: 56px; }
+    .acc-tete { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 16px; border: 0; background: none; font: inherit;
+      font-size: 13px; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; border-radius: 8px; }
+    .acc-tete:hover { background: var(--chip); }
+    .acc-chevron { margin-left: auto; transform: rotate(90deg); transition: transform .15s; }
+    .accordeon.ouvert .acc-chevron { transform: rotate(-90deg); }
+    .acc-corps { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 14px; }
     .sec-titre.repliable { cursor: pointer; display: flex; align-items: center; gap: 6px; }
     .sec-titre nx-icon { transition: transform .15s; transform: rotate(90deg); }
     .sec-titre nx-icon.ferme { transform: none; }
@@ -224,6 +246,7 @@ export class FormulaireDynamique {
       disposition: un(o.disposition, ['CONTINU', 'ONGLETS', 'ETAPES'], 'CONTINU'), colonnes: n >= 1 && n <= 4 ? Math.round(n) : null,
       densite: un(o.densite, ['COMPACTE', 'NORMALE', 'AEREE'], 'COMPACTE'), libelles: un(o.libelles, ['DESSUS', 'COTE'], 'DESSUS'),
       navigation: o.navigation !== false, repliables: o.repliables === true,
+      sousSections: un(o.sousSections, ['BLOCS', 'ACCORDEONS'], 'BLOCS'), accordeons: un(o.accordeons, ['AUCUN', 'PREMIER', 'TOUS'], 'AUCUN'),
     };
   });
   /** Onglet ou étape affiché (dispositions ONGLETS et ETAPES). */
@@ -256,6 +279,21 @@ export class FormulaireDynamique {
 
   protected erreursBloc(b: Bloc): number {
     return this.erreursSection(b.s.code) + b.enfants.reduce((n, e) => n + this.erreursSection(e.code), 0);
+  }
+
+  /** État choisi par l'utilisateur pour chaque accordéon ; sinon état initial du gabarit. */
+  private readonly etatsAcc = signal<ReadonlyMap<string, boolean>>(new Map());
+
+  /** Ouvert selon le gabarit (aucun, premier, tous) ; un accordéon en erreur s'ouvre tant que l'utilisateur ne l'a pas refermé. */
+  protected ouvert(code: string, rang: number): boolean {
+    const choix = this.etatsAcc().get(code);
+    if (choix !== undefined) return choix;
+    const a = this.ihm().accordeons;
+    return a === 'TOUS' || (a === 'PREMIER' && rang === 0) || this.erreursSection(code) > 0;
+  }
+
+  protected basculerAccordeon(code: string, rang: number): void {
+    this.etatsAcc.set(new Map(this.etatsAcc()).set(code, !this.ouvert(code, rang)));
   }
 
   protected replie(code: string): boolean {

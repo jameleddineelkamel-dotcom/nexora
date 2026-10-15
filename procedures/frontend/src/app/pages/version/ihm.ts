@@ -13,18 +13,25 @@ export interface GabaritIhm {
   navigation: boolean;
   resume: boolean;
   repliables: boolean;
+  /** Rendu des sous-sections : blocs dans la section parente, ou accordéons (en-tête cliquable). */
+  sousSections: 'BLOCS' | 'ACCORDEONS';
+  /** Accordéons ouverts à l'affichage : aucun, le premier de chaque section, ou tous. */
+  accordeons: 'AUCUN' | 'PREMIER' | 'TOUS';
 }
 
-export const GABARIT_DEFAUT: GabaritIhm = { disposition: 'CONTINU', colonnes: 3, densite: 'COMPACTE', libelles: 'DESSUS', navigation: true, resume: true, repliables: false };
+export const GABARIT_DEFAUT: GabaritIhm = { disposition: 'CONTINU', colonnes: 3, densite: 'COMPACTE', libelles: 'DESSUS', navigation: true, resume: true, repliables: false,
+  sousSections: 'BLOCS', accordeons: 'AUCUN' };
 
 const MODELES: { code: string; libelle: string; aide: string; g: GabaritIhm }[] = [
   { code: 'GUCE', libelle: 'Formulaire GUCE compact', aide: 'Sections à la suite, 3 colonnes, pastilles de navigation', g: GABARIT_DEFAUT },
   { code: 'ASSISTANT', libelle: 'Assistant pas à pas', aide: 'Une section par étape, Précédent / Suivant',
-    g: { disposition: 'ETAPES', colonnes: 2, densite: 'NORMALE', libelles: 'DESSUS', navigation: true, resume: false, repliables: false } },
+    g: { ...GABARIT_DEFAUT, disposition: 'ETAPES', colonnes: 2, densite: 'NORMALE', resume: false } },
   { code: 'ONGLETS', libelle: 'Onglets', aide: 'Une section de premier niveau par onglet',
-    g: { disposition: 'ONGLETS', colonnes: 3, densite: 'COMPACTE', libelles: 'DESSUS', navigation: false, resume: true, repliables: false } },
+    g: { ...GABARIT_DEFAUT, disposition: 'ONGLETS', navigation: false } },
+  { code: 'ONGLETS_ACCORDEONS', libelle: 'Onglets et accordéons', aide: 'Sections en onglets, sous-sections en accordéons (type déclaration EUCDM)',
+    g: { ...GABARIT_DEFAUT, disposition: 'ONGLETS', navigation: false, resume: false, sousSections: 'ACCORDEONS' } },
   { code: 'DENSE', libelle: 'Saisie dense (agents)', aide: '4 colonnes, libellés à gauche, sections repliables',
-    g: { disposition: 'CONTINU', colonnes: 4, densite: 'COMPACTE', libelles: 'COTE', navigation: true, resume: false, repliables: true } },
+    g: { ...GABARIT_DEFAUT, colonnes: 4, libelles: 'COTE', resume: false, repliables: true } },
 ];
 
 /** Lecture tolérante du réglage « ihm » : valeurs inconnues remplacées par celles du gabarit par défaut. */
@@ -40,6 +47,8 @@ export function gabarit(x: unknown): GabaritIhm {
     navigation: typeof o['navigation'] === 'boolean' ? o['navigation'] : GABARIT_DEFAUT.navigation,
     resume: typeof o['resume'] === 'boolean' ? o['resume'] : GABARIT_DEFAUT.resume,
     repliables: typeof o['repliables'] === 'boolean' ? o['repliables'] : GABARIT_DEFAUT.repliables,
+    sousSections: un(o['sousSections'], ['BLOCS', 'ACCORDEONS'] as const, GABARIT_DEFAUT.sousSections),
+    accordeons: un(o['accordeons'], ['AUCUN', 'PREMIER', 'TOUS'] as const, GABARIT_DEFAUT.accordeons),
   };
 }
 
@@ -89,6 +98,18 @@ export function gabarit(x: unknown): GabaritIhm {
               @for (o of [['DESSUS', 'Au-dessus du champ'], ['COTE', 'À gauche du champ']]; track o[0]) {
                 <option [value]="o[0]" [selected]="g().libelles === o[0]">{{ o[1] | t }}</option> }
             </select></div>
+          <div class="field"><label for="ih-s">{{ 'Sous-sections' | t }}</label>
+            <select id="ih-s" class="input" (change)="poser('sousSections', $any($event.target).value)">
+              @for (o of [['BLOCS', 'Blocs dans la section'], ['ACCORDEONS', 'Accordéons']]; track o[0]) {
+                <option [value]="o[0]" [selected]="g().sousSections === o[0]">{{ o[1] | t }}</option> }
+            </select></div>
+          @if (g().sousSections === 'ACCORDEONS') {
+            <div class="field"><label for="ih-a">{{ 'Accordéons ouverts' | t }}</label>
+              <select id="ih-a" class="input" (change)="poser('accordeons', $any($event.target).value)">
+                @for (o of [['AUCUN', 'Aucun (tous fermés)'], ['PREMIER', 'Le premier de chaque section'], ['TOUS', 'Tous']]; track o[0]) {
+                  <option [value]="o[0]" [selected]="g().accordeons === o[0]">{{ o[1] | t }}</option> }
+              </select></div>
+          }
           <div class="field">
             <label class="check"><input type="checkbox" [checked]="g().navigation" (change)="poser('navigation', $any($event.target).checked)" /> {{ 'Pastilles de navigation' | t }}</label>
             <label class="check"><input type="checkbox" [checked]="g().resume" (change)="poser('resume', $any($event.target).checked)" /> {{ 'Suivi à droite du formulaire (sinon dessous)' | t }}</label>
@@ -125,13 +146,25 @@ export function gabarit(x: unknown): GabaritIhm {
                   <div class="cases" [style.grid-template-columns]="'repeat(' + g().colonnes + ', minmax(0, 1fr))'">
                     @for (c of cases(s.s.code); track $index) { <span class="champ"><span class="lib"></span><span class="case"></span></span> }
                   </div>
-                  @for (e of s.enfants; track e.code) {
-                    <div class="sous">
-                      <div class="titre small">{{ e.labelFr }} <span class="muted">· {{ nb(e.code) }} {{ 'champ(s)' | t }}</span></div>
-                      <div class="cases" [style.grid-template-columns]="'repeat(' + g().colonnes + ', minmax(0, 1fr))'">
-                        @for (c of cases(e.code); track $index) { <span class="champ"><span class="lib"></span><span class="case"></span></span> }
+                  @for (e of s.enfants; track e.code; let j = $index) {
+                    @if (g().sousSections === 'ACCORDEONS') {
+                      <div class="accordeon" [class.ouvert]="accordeonOuvert(e.code, j)">
+                        <button type="button" class="acc-tete" (click)="basculerAccordeon(e.code)" [attr.aria-expanded]="accordeonOuvert(e.code, j)">
+                          {{ e.labelFr }} <span class="muted small">· {{ nb(e.code) }} {{ 'champ(s)' | t }}</span><span class="chevron">⌄</span></button>
+                        @if (accordeonOuvert(e.code, j)) {
+                          <div class="cases acc-corps" [style.grid-template-columns]="'repeat(' + g().colonnes + ', minmax(0, 1fr))'">
+                            @for (c of cases(e.code); track $index) { <span class="champ"><span class="lib"></span><span class="case"></span></span> }
+                          </div>
+                        }
                       </div>
-                    </div>
+                    } @else {
+                      <div class="sous">
+                        <div class="titre small">{{ e.labelFr }} <span class="muted">· {{ nb(e.code) }} {{ 'champ(s)' | t }}</span></div>
+                        <div class="cases" [style.grid-template-columns]="'repeat(' + g().colonnes + ', minmax(0, 1fr))'">
+                          @for (c of cases(e.code); track $index) { <span class="champ"><span class="lib"></span><span class="case"></span></span> }
+                        </div>
+                      </div>
+                    }
                   }
                 }
               </div>
@@ -169,6 +202,11 @@ export function gabarit(x: unknown): GabaritIhm {
     .sections { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
     .suivi { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; }
     .court { width: 60%; }
+    .accordeon { border-radius: 8px; background: var(--surface-2); }
+    .acc-tete { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; }
+    .acc-tete .chevron { margin-left: auto; transition: transform .15s; }
+    .accordeon.ouvert .chevron { transform: rotate(180deg); }
+    .acc-corps { padding: 0 10px 10px; }
     .champ { display: flex; flex-direction: column; gap: 3px; }
     .lib { height: 6px; width: 55%; border-radius: 3px; background: var(--line); }
     [data-libelles="COTE"] .champ { flex-direction: row; align-items: center; }
@@ -222,6 +260,22 @@ export class GabaritIhmComponent {
     this.g.set(m);
     this.courante.set(0);
     this.repliees.set(new Set());
+    this.basculesAcc.set(new Set());
+  }
+
+  /** Accordéons basculés par l'utilisateur dans l'aperçu (inversent l'état initial du gabarit). */
+  private readonly basculesAcc = signal<ReadonlySet<string>>(new Set());
+
+  protected accordeonOuvert(code: string, rang: number): boolean {
+    const a = this.g().accordeons;
+    const initial = a === 'TOUS' || (a === 'PREMIER' && rang === 0);
+    return this.basculesAcc().has(code) ? !initial : initial;
+  }
+
+  protected basculerAccordeon(code: string): void {
+    const r = new Set(this.basculesAcc());
+    if (r.has(code)) r.delete(code); else r.add(code);
+    this.basculesAcc.set(r);
   }
 
   protected repliee(code: string): boolean {
@@ -249,6 +303,7 @@ export class GabaritIhmComponent {
 
   protected poser<K extends keyof GabaritIhm>(k: K, val: GabaritIhm[K]): void {
     this.g.update(x => ({ ...x, [k]: val }));
+    if (k === 'accordeons' || k === 'sousSections') this.basculesAcc.set(new Set());
   }
 
   protected enregistrerGabarit(): void {

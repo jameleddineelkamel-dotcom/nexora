@@ -226,4 +226,13 @@ export const EN: Record<string, string> = {
   "Précédent": "Previous",
   "Suivant": "Next",
   "Étape {0} sur {1}": "Step {0} of {1}",
+  "Sous-sections": "Sub-sections",
+  "Blocs dans la section": "Blocks within the section",
+  "Accordéons": "Accordions",
+  "Accordéons ouverts": "Open accordions",
+  "Aucun (tous fermés)": "None (all closed)",
+  "Le premier de chaque section": "The first of each section",
+  "Tous": "All",
+  "Onglets et accordéons": "Tabs and accordions",
+  "Sections en onglets, sous-sections en accordéons (type déclaration EUCDM)": "Sections as tabs, sub-sections as accordions (EUCDM declaration style)",
 };
