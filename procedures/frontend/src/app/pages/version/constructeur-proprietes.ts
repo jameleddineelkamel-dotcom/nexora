@@ -14,8 +14,8 @@ export const TYPES_CHAMP: { code: string; libelle: string; icone: string }[] = [
   { code: 'GEOLOCATION', libelle: 'Localisation', icone: 'pin' },
 ];
 
-/** Modification émise par le panneau : champ et réglages d'affichage complets, code d'origine (renommage). */
-export interface ModificationChamp { ancienCode: string; champ: Field; reglage: ReglageChamp }
+/** Modification émise par le panneau : différence sur le champ {@link code} (un nouveau code vaut renommage) et sur ses réglages d'affichage. */
+export interface ModificationChamp { code: string; champ?: Partial<Field>; reglage?: Partial<ReglageChamp> }
 
 type Onglet = 'affichage' | 'donnees' | 'validation' | 'logique';
 const CONDITION_TYPE = /^\s*typeDemande\s+in\s*\(([^)]*)\)\s*$/i;
@@ -300,18 +300,14 @@ export class ProprietesChamp {
     return (e.target as HTMLInputElement).checked;
   }
 
-  private emettre(champ: Field, reglage: ReglageChamp = this.reglage()): void {
-    this.modifier.emit({ ancienCode: this.champ().code, champ, reglage });
-  }
-
+  /** Émet une différence : le constructeur l'applique à son état courant (plusieurs saisies avant un rendu ne s'écrasent pas). */
   protected poser<K extends keyof Field>(k: K, v: Field[K]): void {
-    this.emettre({ ...this.champ(), [k]: v });
+    this.modifier.emit({ code: this.champ().code, champ: { [k]: v } as Partial<Field> });
   }
 
+  /** Réglages d'affichage modifiés ; une valeur undefined retire le réglage. */
   protected regler(r: Partial<ReglageChamp>): void {
-    const n: ReglageChamp = { ...this.reglage(), ...r };
-    for (const k of Object.keys(n) as (keyof ReglageChamp)[]) if (n[k] === undefined) delete n[k];
-    this.emettre(this.champ(), n);
+    this.modifier.emit({ code: this.champ().code, reglage: r });
   }
 
   protected renommer(code: string): void {

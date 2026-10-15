@@ -31,9 +31,11 @@ function estHaut(s: Section, toutes: Section[]): boolean {
  */
 @Component({
   selector: 'nx-constructeur',
-  imports: [NgTemplateOutlet, CdkDropListGroup, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder, Icon, ProprietesChamp, ApercuFormulaire, ...I18N],
+  imports: [NgTemplateOutlet, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder, Icon, ProprietesChamp, ApercuFormulaire, ...I18N],
+  // Groupe porté par l'hôte : les listes de champs, déclarées dans un ng-template, y sont reliées elles aussi
+  hostDirectives: [CdkDropListGroup],
   template: `
-    <div class="constructeur" cdkDropListGroup>
+    <div class="constructeur">
       <!-- Palette des composants -->
       <aside class="card pad palette">
         <div class="titre-col">{{ 'Composants' | t }}</div>
@@ -61,7 +63,7 @@ function estHaut(s: Section, toutes: Section[]): boolean {
           <div class="alert info small"><nx-icon name="info" [size]="15" />
             <span>{{ 'Le gabarit d\\'IHM actuel n\\'affiche pas les sections en onglets et les sous-sections en accordéons : choisissez le modèle « Onglets et accordéons » dans le Gabarit d\\'IHM pour un rendu identique au constructeur.' | t }}</span></div>
         }
-        <div cdkDropList id="nx-onglets" class="onglets" cdkDropListOrientation="horizontal" [cdkDropListEnterPredicate]="accepteOnglet"
+        <div cdkDropList id="nx-onglets" class="onglets" cdkDropListOrientation="mixed" [cdkDropListEnterPredicate]="accepteOnglet"
           [cdkDropListDisabled]="!modifiable()" (cdkDropListDropped)="deposerOnglet($event)">
           @for (s of hauts(); track s.code) {
             <div class="onglet" cdkDrag [cdkDragData]="{ kind: 'onglet', code: s.code }" [class.on]="s.code === ongletActif()" (click)="ouvrirOnglet(s.code)">
@@ -242,7 +244,7 @@ function estHaut(s: Section, toutes: Section[]): boolean {
     .composant:hover { border-color: var(--accent); color: var(--accent); }
     .sep { border-top: 1px solid var(--line); margin: 4px 0; }
     .canevas { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-    .onglets { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; align-items: flex-end; }
+    .onglets { display: flex; gap: 2px; border-bottom: 1px solid var(--line); align-items: flex-end; flex-wrap: wrap; }
     .onglet { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px;
       font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; background: var(--surface); user-select: none; }
     .onglet.on { color: var(--accent); border-bottom-color: var(--accent); }
@@ -610,10 +612,15 @@ export class Constructeur {
 
   /** Modification venue du panneau de propriétés ; un renommage reporte le code dans les réglages et les conditions d'affichage. */
   protected modifierChamp(m: ModificationChamp): void {
-    const { ancienCode, champ } = m;
+    const ancienCode = m.code;
+    const actuel = this.fields().find(f => f.code === ancienCode);
+    if (!actuel) return;
+    const champ: Field = { ...actuel, ...m.champ };
+    const reglage: ReglageChamp = { ...this.reglages()[ancienCode], ...m.reglage };
+    for (const k of Object.keys(reglage) as (keyof ReglageChamp)[]) if (reglage[k] === undefined) delete reglage[k];
     const r = { ...this.reglages() };
     delete r[ancienCode];
-    if (Object.keys(m.reglage).length) r[champ.code] = m.reglage;
+    if (Object.keys(reglage).length) r[champ.code] = reglage;
     if (champ.code !== ancienCode)
       for (const [k, x] of Object.entries(r)) if (x.visibleSi?.champ === ancienCode) r[k] = { ...x, visibleSi: { ...x.visibleSi, champ: champ.code } };
     this.reglages.set(r);
