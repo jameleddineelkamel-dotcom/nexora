@@ -1,11 +1,12 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { Api, Bie, CodeValue, Field, VersionComplete } from '../../core/api';
-import { I18N } from '../../core/i18n';
+import { I18N, I18n } from '../../core/i18n';
 import { erreurs } from '../../core/session';
 import { Colonne, Grille } from '../../shared/grille';
 import { Icon } from '../../shared/icon';
 import { Enregistrement } from './general';
 import { GabaritIhmComponent } from './ihm';
+import { Constructeur } from './constructeur';
 
 const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 'EMAIL', 'PHONE', 'BOOLEAN', 'GEOLOCATION'];
 
@@ -16,9 +17,18 @@ const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 
  */
 @Component({
   selector: 'nx-onglet-formulaire',
-  imports: [Icon, Grille, GabaritIhmComponent, ...I18N],
+  imports: [Icon, Grille, GabaritIhmComponent, Constructeur, ...I18N],
   template: `
     <nx-gabarit-ihm [v]="v()" [modifiable]="modifiable()" (enregistrer)="enregistrer.emit($event)" />
+    <div class="vues" role="tablist">
+      <button type="button" role="tab" class="vue" [class.on]="vue() === 'constructeur'" [attr.aria-selected]="vue() === 'constructeur'" (click)="changerVue('constructeur')">
+        <nx-icon name="template" [size]="15" /> {{ 'Constructeur visuel' | t }}</button>
+      <button type="button" role="tab" class="vue" [class.on]="vue() === 'grilles'" [attr.aria-selected]="vue() === 'grilles'" (click)="changerVue('grilles')">
+        <nx-icon name="table" [size]="15" /> {{ 'Grilles' | t }}</button>
+    </div>
+    @if (vue() === 'constructeur') {
+      <nx-constructeur [v]="v()" [modifiable]="modifiable()" (enregistrer)="enregistrer.emit($event)" (regles)="regles.emit()" />
+    } @else {
     <div class="card pad stack">
       <div class="card-title"><nx-icon name="layers" /><h2>{{ 'Sections et sous-sections' | t }}</h2></div>
       <nx-grille [colonnes]="colSections()" [donnees]="$any(v().sections)" [modele]="{ repeating: false, minRows: 0 }" [lectureSeule]="!modifiable()"
@@ -51,9 +61,13 @@ const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 
         @if (copie()) { <div class="muted small">{{ 'Chemin copié : collez-le dans la colonne « Chemin BIE » du champ.' | t }}</div> }
       }
     </div>
+    }
   `,
   styles: [`
     :host { display: flex; flex-direction: column; gap: 16px; }
+    .vues { display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+    .vue { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+    .vue.on { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
     .resultats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 6px; max-height: 300px; overflow-y: auto; }
     .bie { display: flex; flex-direction: column; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; color: var(--text); cursor: pointer; }
     .bie.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -62,9 +76,15 @@ const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 
 })
 export class OngletFormulaire {
   private readonly api = inject(Api);
+  private readonly i18n = inject(I18n);
   readonly v = input.required<VersionComplete>();
   readonly modifiable = input(false);
   readonly enregistrer = output<Enregistrement>();
+  /** Demande d'ouverture de l'onglet Règles DRL (contrôles inter-champs). */
+  readonly regles = output<void>();
+  /** Vue d'édition : constructeur visuel (glisser-déposer) ou grilles tabulaires. */
+  protected readonly vue = signal<'constructeur' | 'grilles'>(OngletFormulaire.vueInitiale());
+  private readonly constructeur = viewChild(Constructeur);
   protected readonly q = signal('');
   protected readonly resultats = signal<Bie[]>([]);
   protected readonly choisi = signal<Bie | null>(null);
@@ -97,6 +117,17 @@ export class OngletFormulaire {
   /** Valeurs locales présentées en texte « code=FR|EN ». */
   protected readonly champsEdition = computed(() => this.v().fields.map(f => ({
     ...f, codeValues: (f.codeValues ?? []).map(c => `${c.code}=${c.labelFr}${c.labelEn ? '|' + c.labelEn : ''}`) })) as unknown as Record<string, unknown>[]);
+
+  private static vueInitiale(): 'constructeur' | 'grilles' {
+    try { return localStorage.getItem('nexora.formulaire.vue') === 'grilles' ? 'grilles' : 'constructeur'; } catch { return 'constructeur'; }
+  }
+
+  protected changerVue(v: 'constructeur' | 'grilles'): void {
+    if (v === this.vue()) return;
+    if (this.constructeur()?.modifie() && !confirm(this.i18n.t('Les modifications du constructeur ne sont pas enregistrées. Les abandonner ?'))) return;
+    this.vue.set(v);
+    try { localStorage.setItem('nexora.formulaire.vue', v); } catch { /* stockage indisponible */ }
+  }
 
   protected enregistrerChamps(lignes: Record<string, unknown>[], motif: string): void {
     const champs = lignes.map(l => {

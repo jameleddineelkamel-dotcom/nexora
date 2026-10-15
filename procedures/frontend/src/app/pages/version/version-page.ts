@@ -62,7 +62,7 @@ type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'f
       </div>
       @switch (onglet()) {
         @case ('general') { <nx-onglet-general [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
-        @case ('formulaire') { <nx-onglet-formulaire [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
+        @case ('formulaire') { <nx-onglet-formulaire [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" (regles)="onglet.set('regles')" /> }
         @case ('frais') { <nx-onglet-pieces-frais vue="frais" [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('pieces') { <nx-onglet-pieces-frais vue="pieces" [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('messages') { <nx-onglet-messages [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }

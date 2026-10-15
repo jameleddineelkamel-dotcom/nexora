@@ -7,8 +7,11 @@ import { CodePicker, Localisation } from './widgets';
 
 type Donnees = Record<string, unknown>;
 type Ligne = Record<string, unknown>;
+/** Réglages d'affichage d'un champ posés par le constructeur de formulaire du studio (réglage « ihm.champs »). */
+type ReglageChamp = { largeur?: number; placeholderFr?: string; placeholderEn?: string; visibleSi?: { champ: string; valeurs?: string[] } };
 type Ihm = { disposition: 'CONTINU' | 'ONGLETS' | 'ETAPES'; colonnes: number | null; densite: 'COMPACTE' | 'NORMALE' | 'AEREE'; libelles: 'DESSUS' | 'COTE';
-  navigation: boolean; repliables: boolean; sousSections: 'BLOCS' | 'ACCORDEONS'; accordeons: 'AUCUN' | 'PREMIER' | 'TOUS' };
+  navigation: boolean; repliables: boolean; sousSections: 'BLOCS' | 'ACCORDEONS'; accordeons: 'AUCUN' | 'PREMIER' | 'TOUS';
+  champs: Record<string, ReglageChamp> };
 type Bloc = { s: Section; enfants: Section[] };
 
 /**
@@ -16,7 +19,8 @@ type Bloc = { s: Section; enfants: Section[] };
  * Référentiel Commun, lieux de traitement, localisation intelligente. En amendement, les champs non modifiables sont
  * verrouillés et les valeurs modifiées sont surlignées avec la valeur précédente (RG2 UC-03). Le gabarit d'IHM du studio
  * choisit la disposition (continue, onglets, étapes), le nombre de colonnes, la densité et la position des libellés ;
- * les sous-sections s'affichent à l'intérieur de leur section parente, en blocs ou en accordéons.
+ * les sous-sections s'affichent à l'intérieur de leur section parente, en blocs ou en accordéons. Le constructeur visuel
+ * règle par champ la largeur (en colonnes), le texte indicatif et l'affichage conditionnel (« visible si »).
  */
 @Component({
   selector: 'nx-formulaire',
@@ -88,15 +92,15 @@ type Bloc = { s: Section; enfants: Section[] };
     <ng-template #corps let-s="s">
         @if (!s.repeating) {
           <div class="grille" [class.cols]="!!ihm().colonnes" [style.--cols]="ihm().colonnes">
-            @for (f of champs(s.code); track f.code) {
-              <div class="field" [class.full]="f.dataType === 'LONGTEXT' || f.dataType === 'GEOLOCATION'">
+            @for (f of champs(s.code); track f.code) { @if (visible(f, null)) {
+              <div class="field" [class.full]="pleine(f)" [class.large]="!pleine(f) && largeur(f) > 1" [style.--span]="largeur(f)">
                 <label [attr.for]="'c-' + f.code">{{ f.labelFr | lib: f.labelEn }} @if (obligatoire(f)) { <span class="req">*</span> }</label>
                 <ng-container *ngTemplateOutlet="saisie; context: { f: f, v: valeur(f.code), ligne: null, i: -1 }" />
                 @if (modifie(f.code)) { <span class="hint avant">{{ 'Avant amendement' | t }} : <b>{{ affichage(f, precedent()?.[f.code]) || '—' }}</b></span> }
                 @else if (f.helpFr) { <span class="hint">{{ f.helpFr | lib: f.helpEn }}</span> }
                 @if (erreur(f.code); as e) { <span class="hint err-txt">{{ e }}</span> }
               </div>
-            }
+            } }
           </div>
         } @else {
           <div class="scroll-x">
@@ -107,7 +111,7 @@ type Bloc = { s: Section; enfants: Section[] };
                   <tr>
                     <td class="muted">{{ i + 1 }}</td>
                     @for (f of champs(s.code); track f.code) {
-                      <td><ng-container *ngTemplateOutlet="saisie; context: { f: f, v: l[f.code], ligne: s.code, i: i }" /></td>
+                      <td>@if (visible(f, l)) { <ng-container *ngTemplateOutlet="saisie; context: { f: f, v: l[f.code], ligne: s.code, i: i }" /> }</td>
                     }
                     @if (!lectureSeule()) { <td><button type="button" class="btn icon ghost danger" (click)="retirerLigne(s, i)" [attr.aria-label]="'Retirer la ligne' | t"><nx-icon name="trash" /></button></td> }
                   </tr>
@@ -140,11 +144,11 @@ type Bloc = { s: Section; enfants: Section[] };
             <nx-code-picker [table]="f.refdataTable" [value]="$any(v) ?? null" (valueChange)="poser(f, $event ?? '', ligne, i)" [disabled]="verrou(f)"
               [erreur]="!!erreur(f.code)" [label]="f.labelFr" />
           } @else {
-            <input class="input" [id]="'c-' + f.code" [value]="v ?? ''" [disabled]="verrou(f)" (input)="poser(f, $any($event.target).value, ligne, i)" />
+            <input class="input" [id]="'c-' + f.code" [value]="v ?? ''" [disabled]="verrou(f)" [attr.placeholder]="indication(f)" (input)="poser(f, $any($event.target).value, ligne, i)" />
           }
         }
         @case ('GEOLOCATION') { <nx-localisation [value]="$any(v) ?? null" (valueChange)="poser(f, $event ?? '', ligne, i)" [disabled]="verrou(f)" /> }
-        @case ('LONGTEXT') { <textarea class="input" [id]="'c-' + f.code" [value]="v ?? ''" [disabled]="verrou(f)" (input)="poser(f, $any($event.target).value, ligne, i)"></textarea> }
+        @case ('LONGTEXT') { <textarea class="input" [id]="'c-' + f.code" [value]="v ?? ''" [attr.placeholder]="indication(f)" [disabled]="verrou(f)" (input)="poser(f, $any($event.target).value, ligne, i)"></textarea> }
         @case ('BOOLEAN') {
           <select class="input" [id]="'c-' + f.code" [disabled]="verrou(f)" (change)="poser(f, $any($event.target).value, ligne, i)">
             <option value="">—</option><option value="true" [selected]="v === 'true' || v === true">{{ 'Oui' | t }}</option>
@@ -152,7 +156,7 @@ type Bloc = { s: Section; enfants: Section[] };
           </select>
         }
         @default {
-          <input class="input" [id]="'c-' + f.code" [type]="type(f)" [value]="v ?? ''" [disabled]="verrou(f)" [attr.maxlength]="f.maxLength"
+          <input class="input" [id]="'c-' + f.code" [type]="type(f)" [value]="v ?? ''" [disabled]="verrou(f)" [attr.maxlength]="f.maxLength" [attr.placeholder]="indication(f)"
             [attr.inputmode]="f.dataType === 'DECIMAL' || f.dataType === 'NUMBER' || f.dataType === 'YEAR' ? 'decimal' : null"
             [class.mono]="f.dataType !== 'TEXT'" [class.err]="!!erreur(f.code)" [class.modifie]="ligne === null && modifie(f.code)"
             (input)="poser(f, $any($event.target).value, ligne, i)" />
@@ -174,7 +178,7 @@ type Bloc = { s: Section; enfants: Section[] };
     .sec-titre { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--accent); text-transform: none; }
     .grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 8px 12px; }
     .grille.cols { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
-    @media (max-width: 760px) { .grille.cols { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) { .grille.cols { grid-template-columns: 1fr; } .grille .field.large { grid-column: auto; } }
     /* Sous-sections : à l'intérieur de la section parente */
     .sous-sec { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--accent-soft); scroll-margin-top: 56px; }
     .sous-titre { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text); }
@@ -208,6 +212,7 @@ type Bloc = { s: Section; enfants: Section[] };
     :host([data-libelles="COTE"]) .grille .field { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; align-items: center; column-gap: 8px; }
     :host([data-libelles="COTE"]) .grille .field > .hint { grid-column: 2; }
     .grille .full { grid-column: 1 / -1; }
+    .grille .large { grid-column: span var(--span); }
     .grille .field { gap: 3px; }
     .grille .field > label { font-size: 11.5px; }
     .grille .hint { font-size: 11px; line-height: 1.3; }
@@ -247,6 +252,7 @@ export class FormulaireDynamique {
       densite: un(o.densite, ['COMPACTE', 'NORMALE', 'AEREE'], 'COMPACTE'), libelles: un(o.libelles, ['DESSUS', 'COTE'], 'DESSUS'),
       navigation: o.navigation !== false, repliables: o.repliables === true,
       sousSections: un(o.sousSections, ['BLOCS', 'ACCORDEONS'], 'BLOCS'), accordeons: un(o.accordeons, ['AUCUN', 'PREMIER', 'TOUS'], 'AUCUN'),
+      champs: o.champs && typeof o.champs === 'object' ? (o.champs as Record<string, ReglageChamp>) : {},
     };
   });
   /** Onglet ou étape affiché (dispositions ONGLETS et ETAPES). */
@@ -313,6 +319,34 @@ export class FormulaireDynamique {
   /** Défilement vers une section (navigation par pastilles). */
   protected aller(section: string): void {
     document.getElementById(this.ancre(section))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Largeur du champ en colonnes de la grille (réglage du constructeur ; 1 par défaut). */
+  protected largeur(f: Field): number {
+    const n = Number(this.ihm().champs[f.code]?.largeur);
+    return n >= 1 && n <= 4 ? Math.round(n) : 1;
+  }
+
+  /** Champ sur toute la largeur : texte long, localisation, ou largeur au moins égale au nombre de colonnes. */
+  protected pleine(f: Field): boolean {
+    const r = this.ihm().champs[f.code]?.largeur;
+    if (r === undefined || r === null) return f.dataType === 'LONGTEXT' || f.dataType === 'GEOLOCATION';
+    return this.largeur(f) >= (this.ihm().colonnes ?? 4);
+  }
+
+  protected indication(f: Field): string | null {
+    const r = this.ihm().champs[f.code];
+    return r ? this.i18n.libelle(r.placeholderFr, r.placeholderEn) || null : null;
+  }
+
+  /** Affichage conditionnel « visible si » : valeur du champ référencé (même ligne d'un groupe répétitif, sinon formulaire). */
+  protected visible(f: Field, ligne: Ligne | null): boolean {
+    const si = this.ihm().champs[f.code]?.visibleSi;
+    if (!si?.champ) return true;
+    const v = ligne && si.champ in ligne ? ligne[si.champ] : this.donnees()[si.champ];
+    const valeur = v === null || v === undefined ? '' : String(v).trim();
+    const valeurs = si.valeurs ?? [];
+    return valeurs.length ? valeurs.some(x => String(x).trim().toUpperCase() === valeur.toUpperCase()) : valeur !== '';
   }
 
   private applicable(f: Field): boolean {

@@ -19,6 +19,24 @@ export interface GabaritIhm {
   accordeons: 'AUCUN' | 'PREMIER' | 'TOUS';
 }
 
+/**
+ * Réglages d'affichage d'un champ posés par le constructeur visuel, rangés dans « ihm.champs » (clé = code du champ) :
+ * largeur en colonnes de la grille, texte indicatif (placeholder) et affichage conditionnel simple.
+ */
+export interface ReglageChamp {
+  largeur?: number;
+  placeholderFr?: string;
+  placeholderEn?: string;
+  /** Visible si le champ « champ » vaut l'une des valeurs ; liste vide : visible si le champ est renseigné. */
+  visibleSi?: { champ: string; valeurs: string[] };
+}
+
+/** Lecture tolérante de « ihm.champs ». */
+export function reglagesChamps(ihm: unknown): Record<string, ReglageChamp> {
+  const c = ihm && typeof ihm === 'object' ? (ihm as Record<string, unknown>)['champs'] : null;
+  return c && typeof c === 'object' ? structuredClone(c as Record<string, ReglageChamp>) : {};
+}
+
 export const GABARIT_DEFAUT: GabaritIhm = { disposition: 'CONTINU', colonnes: 3, densite: 'COMPACTE', libelles: 'DESSUS', navigation: true, resume: true, repliables: false,
   sousSections: 'BLOCS', accordeons: 'AUCUN' };
 
@@ -308,7 +326,9 @@ export class GabaritIhmComponent {
 
   protected enregistrerGabarit(): void {
     const v = this.v().version;
-    this.enregistrer.emit({ partie: 'settings', corps: { settings: { ...v.settings, ihm: this.g() }, changeNote: v.changeNote }, motif: 'Gabarit d\'IHM du formulaire' });
+    // Les réglages par champ du constructeur (« ihm.champs ») sont conservés
+    const ihm = { ...(v.settings['ihm'] && typeof v.settings['ihm'] === 'object' ? v.settings['ihm'] as object : {}), ...this.g() };
+    this.enregistrer.emit({ partie: 'settings', corps: { settings: { ...v.settings, ihm }, changeNote: v.changeNote }, motif: 'Gabarit d\'IHM du formulaire' });
   }
 
   protected exporter(): void {

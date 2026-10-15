@@ -53,7 +53,7 @@ public class Validation {
         Set<String> repetees = new HashSet<>();
         p.sections().stream().filter(Paquet.Section::repeating).forEach(s -> repetees.add(s.code()));
         for (Paquet.Field f : p.fields()) {
-            if (repetees.contains(f.sectionCode()) || INSTRUCTION.equals(f.sectionCode()) || !applicable(f, type)) continue;
+            if (repetees.contains(f.sectionCode()) || INSTRUCTION.equals(f.sectionCode()) || !applicable(f, type) || !visible(p, f, donnees, null)) continue;
             controler(f, donnees.get(f.code()), e, null, lieux, liste);
         }
         for (Paquet.Section s : p.sections()) {
@@ -65,7 +65,7 @@ public class Validation {
             for (Object ligne : lignes) {
                 n++;
                 Map<?, ?> m = ligne instanceof Map<?, ?> x ? x : Map.of();
-                for (Paquet.Field f : p.champsDe(s.code())) if (applicable(f, type)) controler(f, m.get(f.code()), e, n, lieux, liste);
+                for (Paquet.Field f : p.champsDe(s.code())) if (applicable(f, type) && visible(p, f, donnees, m)) controler(f, m.get(f.code()), e, n, lieux, liste);
             }
         }
         for (Paquet.RequiredDocument d : p.documents()) {
@@ -88,6 +88,22 @@ public class Validation {
         if (!m.matches()) return true;
         for (String t : m.group(1).split(",")) if (t.strip().replace("'", "").equalsIgnoreCase(type)) return true;
         return false;
+    }
+
+    /**
+     * Affichage conditionnel du constructeur de formulaire (réglage « ihm.champs.CODE.visibleSi » : { champ, valeurs }) :
+     * le champ n'est affiché, donc contrôlé, que si le champ référencé (de la même ligne d'un groupe répétitif, sinon du
+     * formulaire) vaut l'une des valeurs, ou est renseigné quand la liste des valeurs est vide.
+     */
+    public static boolean visible(Paquet p, Paquet.Field f, Map<String, Object> donnees, Map<?, ?> ligne) {
+        if (p.settings() == null || !(p.settings().get("ihm") instanceof Map<?, ?> ihm) || !(ihm.get("champs") instanceof Map<?, ?> champs)
+                || !(champs.get(f.code()) instanceof Map<?, ?> reglage) || !(reglage.get("visibleSi") instanceof Map<?, ?> si)
+                || !(si.get("champ") instanceof String champ) || champ.isBlank()) return true;
+        Object v = ligne != null && ligne.containsKey(champ) ? ligne.get(champ) : donnees.get(champ);
+        String valeur = v == null ? "" : String.valueOf(v).strip();
+        List<?> valeurs = si.get("valeurs") instanceof List<?> l ? l : List.of();
+        if (valeurs.isEmpty()) return !valeur.isEmpty();
+        return valeurs.stream().anyMatch(x -> String.valueOf(x).strip().equalsIgnoreCase(valeur));
     }
 
     /**

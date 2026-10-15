@@ -128,7 +128,9 @@ public class VersionService {
             case "statuses" -> repo.statuts(id, liste(corps, CaseStatus.class));
             case "form" -> {
                 Formulaire f = json.mapper().convertValue(corps, Formulaire.class);
-                repo.formulaire(id, f.sections() == null ? List.of() : f.sections(), f.fields() == null ? List.of() : f.fields());
+                List<Field> champs = f.fields() == null ? List.of() : f.fields();
+                repo.formulaire(id, f.sections() == null ? List.of() : f.sections(), champs);
+                if (f.champs() != null) repo.parametres(id, new Parametres(avecAffichage(v.settings(), f.champs(), champs), v.changeNote()), auteur);
             }
             case "documents" -> repo.pieces(id, liste(corps, RequiredDocument.class));
             case "fees" -> repo.frais(id, liste(corps, FeeItem.class));
@@ -144,7 +146,26 @@ public class VersionService {
         return repo.complete(id);
     }
 
-    public record Formulaire(List<Section> sections, List<Field> fields) {}
+    /**
+     * Partie « form » : sections et champs ; {@code champs} (facultatif) porte les réglages d'affichage par champ du
+     * constructeur visuel (largeur en colonnes, texte indicatif, affichage conditionnel), rangés dans le gabarit d'IHM
+     * (réglage « ihm.champs ») et enregistrés dans la même transaction.
+     */
+    public record Formulaire(List<Section> sections, List<Field> fields, Map<String, Object> champs) {}
+
+    /** Réglages de la version avec « ihm.champs » remplacé ; les entrées vides ou des champs supprimés sont retirées. */
+    static Map<String, Object> avecAffichage(Map<String, Object> settings, Map<String, Object> champs, List<Field> fields) {
+        Set<String> codes = new HashSet<>();
+        fields.forEach(x -> codes.add(x.code()));
+        Map<String, Object> retenus = new LinkedHashMap<>();
+        champs.forEach((code, r) -> { if (codes.contains(code) && r instanceof Map<?, ?> m && !m.isEmpty()) retenus.put(code, r); });
+        Map<String, Object> s = new LinkedHashMap<>(settings == null ? Map.of() : settings);
+        Map<String, Object> ihm = new LinkedHashMap<>();
+        if (s.get("ihm") instanceof Map<?, ?> m) m.forEach((k, x) -> ihm.put(String.valueOf(k), x));
+        if (retenus.isEmpty()) ihm.remove("champs"); else ihm.put("champs", retenus);
+        if (ihm.isEmpty()) s.remove("ihm"); else s.put("ihm", ihm);
+        return s;
+    }
 
     private <T> List<T> liste(Object corps, Class<T> type) {
         if (!(corps instanceof List<?> l)) throw ProceduresException.invalide("Une liste est attendue.");
