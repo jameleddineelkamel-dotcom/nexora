@@ -165,9 +165,9 @@ public class StudioRepository {
     }
 
     public List<Section> sections(long id) {
-        return jdbc.sql("select code, label_fr, label_en, repeating, min_rows, sort_order from studio.form_section where version_id = :v order by sort_order, code")
+        return jdbc.sql("select code, label_fr, label_en, repeating, min_rows, sort_order, parent_code from studio.form_section where version_id = :v order by sort_order, code")
                 .param("v", id).query((rs, i) -> new Section(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4),
-                        rs.getInt(5), rs.getInt(6))).list();
+                        rs.getInt(5), rs.getInt(6), rs.getString(7))).list();
     }
 
     public List<Field> champs(long id) {
@@ -229,9 +229,16 @@ public class StudioRepository {
     }
 
     public RuleSet regles(long id) {
-        return jdbc.sql("select drl, business_rules::text, updated_at, updated_by from studio.rule_set where version_id = :v").param("v", id)
-                .query((rs, i) -> new RuleSet(rs.getString(1), json.mapper().readValue(rs.getString(2), REGLES),
-                        rs.getObject(3, OffsetDateTime.class), rs.getString(4))).optional().orElse(null);
+        return jdbc.sql("select drl, business_rules::text, updated_at, updated_by, approved_by, approved_at, approved_hash from studio.rule_set where version_id = :v")
+                .param("v", id).query((rs, i) -> new RuleSet(rs.getString(1), json.mapper().readValue(rs.getString(2), REGLES),
+                        rs.getObject(3, OffsetDateTime.class), rs.getString(4), rs.getString(5), rs.getObject(6, OffsetDateTime.class),
+                        rs.getString(7))).optional().orElse(null);
+    }
+
+    /** Approbation des règles : enregistre l'empreinte du DRL approuvé. */
+    public void approuverRegles(long id, String approbateur, OffsetDateTime le, String empreinte, String note) {
+        jdbc.sql("update studio.rule_set set approved_by = :a, approved_at = :t, approved_hash = :h, approval_note = :n where version_id = :v")
+                .param("a", approbateur).param("t", le).param("h", empreinte).param("n", note).param("v", id).update();
     }
 
     public List<Deliverable> livrables(long id) {
@@ -279,10 +286,20 @@ public class StudioRepository {
     public void formulaire(long id, List<Section> sections, List<Field> champs) {
         jdbc.sql("delete from studio.form_field where version_id = :v").param("v", id).update();
         jdbc.sql("delete from studio.form_section where version_id = :v").param("v", id).update();
-        for (Section s : sections)
-            jdbc.sql("insert into studio.form_section (version_id, code, label_fr, label_en, repeating, min_rows, sort_order) values (:v, :c, :f, :e, :r, :m, :o)")
+        // Parent retenu s'il existe et est lui-même de premier niveau (un seul niveau de sous-sections) ; parents insérés d'abord.
+        Map<String, Section> parCode = new HashMap<>();
+        sections.forEach(s -> parCode.put(s.code(), s));
+        List<Section> ordonnees = new ArrayList<>();
+        for (Section s : sections) {
+            Section p = s.parentCode() == null ? null : parCode.get(s.parentCode());
+            String parent = p != null && !p.code().equals(s.code()) && (p.parentCode() == null || p.parentCode().isBlank()) ? p.code() : null;
+            ordonnees.add(new Section(s.code(), s.labelFr(), s.labelEn(), s.repeating(), s.minRows(), s.sortOrder(), parent));
+        }
+        ordonnees.sort(Comparator.comparing((Section s) -> s.parentCode() != null));
+        for (Section s : ordonnees)
+            jdbc.sql("insert into studio.form_section (version_id, code, label_fr, label_en, repeating, min_rows, sort_order, parent_code) values (:v, :c, :f, :e, :r, :m, :o, :p)")
                     .param("v", id).param("c", s.code()).param("f", s.labelFr()).param("e", s.labelEn()).param("r", s.repeating())
-                    .param("m", s.minRows()).param("o", s.sortOrder()).update();
+                    .param("m", s.minRows()).param("o", s.sortOrder()).param("p", s.parentCode()).update();
         for (Field f : champs) insererChamp(id, f);
     }
 
@@ -403,7 +420,12 @@ public class StudioRepository {
         messages(cible, source.messages());
         flux(cible, source.flows());
         if (source.process() != null) processus(cible, source.process(), auteur);
-        if (source.rules() != null) regles(cible, source.rules(), auteur);
+        if (source.rules() != null) {
+            regles(cible, source.rules(), auteur);
+            // Une approbation toujours valable (DRL inchangé) suit les règles dans la nouvelle version.
+            if (source.rules().approuvees())
+                approuverRegles(cible, source.rules().approvedBy(), source.rules().approvedAt(), source.rules().approvedHash(), null);
+        }
         livrables(cible, source.deliverables());
     }
 

@@ -173,7 +173,7 @@ le guichet unique.
 |---|---|---|
 | `studio` | `Modele` (records), `StudioRepository`, `VersionService`, `Gabarit`, `StudioController` | Procédures, versions, parties de version (formulaire, pièces, frais, messages, flux, BPMN, DRL…), cycle de vie, construction du paquet, publication |
 | `agents` | `AgentService` (orchestrateur), `Agents`, `RevueService`, `DocumentAgent` + `TexteSource`, `DataAgent`, `ProcessAgent` + `BpmnGenerateur`, `RulesAgent` + `DrlGenerateur`, `ComplianceAgent` + `Conformite`, `ModeleLangage` | Exécutions d'agents, propositions, revue humaine, contrôles de conformité |
-| `rdm` | `RdmService`, `RdmController` | Consultation du modèle de référence SCRDM D23B (ABIE / BIE) |
+| `rdm` | `RdmService`, `RdmController` | Consultation du modèle de référence SCRDM D23B (ABIE / BIE, restrictions contextuelles, types de données et listes de codes) et de la couche Buy-Ship-Pay (§7.5) |
 | `regles` | `MoteurRegles`, `Demande`, `Antecedent`, `Resultat` | Compilation et banc d'essai DRL (mêmes classes que le Runtime) |
 | `seed` | `AmorcageFimex` | Amorçage de FIMEX en brouillon au premier démarrage (`resources/seed/fimex/version.json`, `fimex.drl`) |
 
@@ -335,6 +335,19 @@ L'empreinte est calculée par PostgreSQL au moment de la publication (`sha256(pa
 | code existant | copie intégrale de la dernière version, clé de processus BPMN renommée |
 | `VIDE` | aucune partie |
 
+### 6.5 Sous-sections, gabarit d'IHM et approbation des règles
+
+| Élément | Mise en œuvre |
+|---|---|
+| **Sous-sections** | `form_section.parent_code` (V5) : une section rattachée à une section de premier niveau ; un seul niveau (un parent qui est lui-même une sous-section est ignoré à l'enregistrement, signalé par le Compliance Agent). Le Runtime affiche la sous-section à l'intérieur de sa section parente |
+| **Gabarit d'IHM** | réglage `ihm` de la version : `disposition` (`CONTINU`, `ONGLETS`, `ETAPES`), `colonnes` (1 – 4), `densite` (`COMPACTE`, `NORMALE`, `AEREE`), `libelles` (`DESSUS`, `COTE`), `navigation`, `resume` (suivi à droite ou sous le formulaire), `repliables`. Modèles prédéfinis, import / export JSON (`nexora.ihm/1`) dans l'onglet Formulaire ; transmis au formulaire e-Services par `/catalog/{code}/form` |
+| **Règles DRL** | onglet « Règles DRL » (après le workflow), puis « Frais » et « Pièces jointes » ; édition, **compilation** seule (`POST /versions/{id}/rules/compile` : erreurs Drools, règles déclarées, empreinte), banc d'essai, **approbation** (`POST /versions/{id}/rules/approve`, droit `procedures.approuver`) |
+
+L'approbation des règles enregistre l'empreinte SHA-256 du DRL (`rule_set.approved_hash`) : toute modification du DRL
+la rend caduque sans l'effacer ; revenir au DRL approuvé la rétablit. Le dernier auteur des règles ne peut pas les
+approuver (RG-GOV-04) et le DRL doit compiler. Le contrôle **RG-GOV-05** signale des règles non approuvées ou modifiées
+depuis leur approbation (alerte, non bloquante). Une nouvelle version reprend une approbation encore valable.
+
 ---
 
 ## 7. Agents IA du studio
@@ -396,7 +409,44 @@ Validé sur la domiciliation bancaire : SFD v1.1 sans modèle de données et dia
 demande, workflow du cycle complet (instruction, émission, transferts SWIFT, apurement), 3 livrables, statuts propres ;
 dossier exécuté jusqu'aux attestations de domiciliation et d'apurement.
 
-### 7.5 Modèle de langage
+### 7.5 Référentiels UN/CEFACT complémentaires
+
+| Source | Chargement | Usage |
+|---|---|---|
+| **UNTDED 2005** (ISO 7372) | `rdm.untded_element` (V5), 1 309 éléments chargés au premier démarrage depuis `seed/reference/untded2005.json` (`ChargementUntded`) | le Data Agent déduit la référence `untdedRef` du BBIE SCRDM (même terme de représentation, propriété identique, classe d'objet proche ; ex. *Trade_ Party. Name. Text* → 3036 *Party. Name.Text*) ; le Compliance Agent signale une référence inconnue (**RG-REF-03**) |
+| **RSM SCRDM v1.0.0.2**, tables 1 et 2 | `rdm.party_role` (V5) : 17 rôles et lieux (vendeur, acheteur, expéditeur, destinataire, transporteur, transitaire, importateur, exportateur, intermédiaire en douane, facturation, lieux d'enlèvement et de livraison, *Ship From / Ship To*) avec chemin BIE et correspondances « Can Be Mapped To » | un libellé qui désigne un rôle (« Nom de l'expéditeur ») rattache le champ à la partie (`specifiedConsignment/consignor/name`) |
+| **RDM Guideline v1.0.0.2**, étape 5 | — | le Data Agent signale les cas 2 (plusieurs correspondances : constat `RDM-GUIDE-2`) et 3 (aucune correspondance : `RDM-GUIDE-3`, extension nationale ou demande d'inclusion à l'UN/CEFACT) |
+| **BRS Buy-Ship-Pay v1.0** | — | découpage Buy / Ship / Pay des phases de la terminologie GUCE (`process_phase.bsp_area`) |
+
+#### Complétion du SCRDM D23B et couche Buy-Ship-Pay (V6, V7)
+
+Source normative : la publication SCRDM (`service.unece.org/…/SCRDM/HTML/001.htm`) dans sa forme machine
+`github.com/uncefact/spec-JSONschema`, `library/BuyShipPay/D23B` (SCRDMMaster, SCRDMContextCCL, BSPContextCCL,
+BasicComponents, codelists). Les migrations sont produites par le générateur `procedures/tools/scrdm` (voir son README), qui reconstruit le modèle
+complet, le compare à V2 et vérifie chaque chemin BIE cité (restrictions comprises) ; enrichissement métier tiré des supports de formation
+e-GUCE 3G (BSP / ISCRM, Recommandations 1 à 48, MD de l'OMD, EDIFACT, ebXML, NIMP, FAL, ZLECAf, CMR).
+
+| Apport | Tables | Usage |
+|---|---|---|
+| **27 ABIE complétés** : les ABIE que le SCRDM reprend tels quels de la bibliothèque BSP (`appliedTax`, `recordedStatus`, `referencedProduct`…) étaient vides en V2 ; DEN, définition et 151 BIE ajoutés | `rdm.abie.source` (`SCRDM` / `BSP`), `rdm.bie` | 141 ABIE, 1 249 BBIE, 627 ASBIE ; plus aucun ABIE sans propriété |
+| **127 cardinalités corrigées** : V2 ignorait `maxItems: 1` (0..n → 0..1, ex. `consignment/id`) et la liste `required` du CCL (→ 1..x, ex. `advancePayment/paidAmount`) | `rdm.bie` | — |
+| **Restrictions contextuelles** : 165 propriétés et 23 composants supplémentaires exclus selon le chemin (ex. sous `logisticsPackage` : `includedTradeLineItem/barcodeId` ; sous la racine : `tradeTransaction/includedTradeLineItem/physicalLogisticsPackage`) | `rdm.context_restriction` | `resoudre` et `cheminsVers` les appliquent : le Data Agent ne propose plus un chemin exclu, le Compliance Agent le refuse (**RG-REF-02**, message « exclu par une restriction contextuelle ») |
+| **Types de données et listes de codes** : 86 UDT/QDT utilisés, 129 listes D23B (UNTDID, Rec. 5/19/20/21/23/24/28, ISO 3166/4217, IANA), 13 687 codes ; libellés multiples d'un même code dans `alt_names` (Rec. 23 FCC, Rec. 24 / UNTDID 4405) | `rdm.data_type`, `rdm.code_list`, `rdm.code_list_entry` (V7) | chaque BBIE expose `codeList` / `unitCodeList` ; le Compliance Agent signale les valeurs locales d'un champ liste absentes de la liste fermée du BBIE (**RG-REF-04**, alerte) |
+| **Couche BSP** : 4 domaines, 12 processus Acheter-Expédier-Payer, 11 entités de haut niveau (commande, article commercial, expédition, envoi, article en consignation, déclaration, article douanier, mouvement, moyen, équipement, colis) ancrées dans le SCRDM avec leurs données clés, 16 règles de cardinalité et 10 règles de parties | `rdm.bsp_domain`, `bsp_process`, `bsp_entity`, `bsp_entity_relation`, `bsp_entity_party` | lecture métier du modèle et contrôle de cohérence des formulaires |
+| **Rôles complétés** : 33 rôles (16 nouveaux : payeur, bénéficiaire, banques, assureur, consignataire de navire, groupeur, agent de transit, courtier, chambre de commerce, douane, ONPV, autorités sanitaire, environnementale, de normalisation, portuaire), groupe d'acteurs (client / fournisseur / intermédiaire / autorité) et code fonction UNTDID 3035 ; importateur et exportateur rattachés à `specifiedConsignment/importer` et `/exporter` | `rdm.party_role` | reconnaissance des rôles par le Data Agent |
+| **Messages** : 70 structures BSP-RDM D23B (dont 13 messages maîtres ; SPSCertificate/ePhyto, eCMR, PreferentialCoO, FAL…) et 18 messages UN/EDIFACT (CUSDEC, CUSRES, GOVCBR, APERAK, CONTRL, AUTACK…) | `rdm.exchange_message` | — |
+| **Instruments** : 45 Recommandations UN/CEFACT, standards SCRDM / MMT-RDM / CCL, ISO 9735, 15000, 15000-5, 7372, MD de l'OMD et CKR, Convention FAL et formulaires 1 à 7, NIMP 2, 7, 12, 14, 20, 23, 24, 25, 46, CMR, ZLECAf, AFE ; 73 liens vers ce qu'ils normalisent (listes de codes, messages, ABIE, chemins BIE, rôles, entités, processus), dont les liens Recommandation → liste lus dans l'en-tête des listes D23B | `rdm.reference_instrument`, `rdm.instrument_link` | traçabilité normative |
+
+Le BSP Master porte la déclaration en douane (`exchangedDeclaration`) ; le SCRDM l'exclut et la représente par
+`specifiedConsignment/applicableCrossBorderRegulatoryProcedure`. Les autorités n'ont pas de rôle dédié dans le SCRDM :
+elles sont rattachées au destinataire du message réglementaire (`exchangedDocument/recipient`) avec leur code 3035.
+
+Consultation : page « Dictionnaire de données » du studio (onglets SCRDM D23B, listes de codes, modèle Buy-Ship-Pay,
+instruments et messages, UNTDED 2005, rôles des parties) ; API `GET /rdm`, `/rdm/abies/{code}` (avec `restrictions`),
+`/rdm/data-types`, `/rdm/code-lists`, `/rdm/code-lists/{id}?q=`, `/rdm/bsp`, `/rdm/instruments`, `/rdm/messages`,
+`/rdm/untded?q=`, `/rdm/untded/{tag}`, `/rdm/party-roles`.
+
+### 7.6 Modèle de langage
 
 Les agents peuvent s'appuyer sur un **modèle de langage auto-hébergé** (souveraineté : aucune donnée ne quitte
 l'infrastructure choisie). `ModeleLangage` est un client de l'API compatible OpenAI `POST /v1/chat/completions`
@@ -611,7 +661,11 @@ publique (`/api/v1/public/verify/{numero}`) contrôle le cachet, le statut et la
 Terminologie (`trade_process`, `process_phase`, `circuit`, `request_nature`) ; `procedure`, `procedure_version`
 (paquet JSONB, empreinte, auteur, approbateur) ; parties de version (`request_type`, `procedure_actor`,
 `case_status`, `form_section`, `form_field`, `required_document`, `fee_item`, `message_definition`,
-`message_field`, `procedure_flow`, `flow_message`, `process_model`, `rule_set`, `deliverable`) ; agents
+`message_field`, `procedure_flow`, `flow_message`, `process_model`, `rule_set` (avec approbation : `approved_by`,
+`approved_at`, `approved_hash`), `deliverable`) ; `form_section.parent_code` (sous-sections) ; schéma `rdm` : SCRDM D23B
+(`abie`, `bie`, `context_restriction`, `data_type`, `code_list`, `code_list_entry`), `untded_element`, `party_role`, couche BSP
+(`bsp_domain`, `bsp_process`, `bsp_entity`, `bsp_entity_relation`, `bsp_entity_party`), `exchange_message`,
+`reference_instrument`, `instrument_link` ; agents
 (`agent`, `agent_policy`, `ai_run`, `ai_proposal`) ; `audit_event` (chaîné, lecture seule).
 
 ### 9.3 Schéma `wfe`
@@ -640,6 +694,18 @@ erDiagram
 
 Le formulaire est stocké en JSONB (`dossier.form_data`) ; les colonnes `tenant_id` sont présentes sur les tables
 principales en vue d'un cloisonnement multi-pays.
+
+**Correspondance avec le modèle historique TTN_WFE** (MCD PowerAMC, 2004) :
+
+| TTN_WFE | NEXORA `wfe` | Remarque |
+|---|---|---|
+| `TYPE_DOSSIER` (code, libellé, activité initiale) | `procedure_deployment` | la procédure publiée et sa version remplacent le type de dossier |
+| `DOSSIER` (numéro, demande, dates, `ACTIF_CLOS`, `IDENTIFIANT1-3`, `CRITERE1-15`) | `dossier` + `dossier_criterion_value` | les 15 critères et 3 identifiants fixes deviennent des critères en nombre libre (champs `searchable`) ; le formulaire complet est en JSONB |
+| `CRITERE_DOSSIER` / `DOSSIER_CRITERE` (nom, valeur) | `dossier_criterion_value` | |
+| `FLUX` (numéro, état, actif) / `FLUX_DOSSIER` | `flux` | |
+| `MESSAGE` (émetteur, destinataire, type, contenu, message père / initiateur, `ETAPE / SENS / MODULE_ETAT_MESSAGE`) | `message`, `message_content`, `message_state_history`, `payload_value` | contenu partitionné, valeurs indexées par chemin |
+| `PARTENAIRE` / `TYPE_PARTENAIRE` | `partner` / `partner_type` | |
+| `PIECE_JOINTE` (type de fichier, référence, base image) | `attachment`, `message_attachment` | |
 
 ### 9.4 Vues métier `proc_<code>`
 
@@ -806,6 +872,8 @@ Toutes les routes sont préfixées par `/api/v1` sauf mention contraire.
 | POST / PUT | `/procedures`, `/procedures/{code}`, `/procedures/{code}/versions`, `/versions/{id}/parts/{partie}` | `procedures.modeliser` |
 | GET | `/versions/{id}/bpmn` (XML), `/versions/{id}/drl`, `/versions/{id}/package` | `procedures.lire` |
 | POST | `/versions/{id}/rules/test` | `procedures.modeliser` |
+| POST | `/versions/{id}/rules/compile` (DRL soumis ou enregistré) | `procedures.lire` |
+| GET · POST | `/versions/{id}/rules/approval` · `/versions/{id}/rules/approve` | lire · `procedures.approuver` (pas le dernier auteur des règles) |
 | POST | `/versions/{id}/agents/{code}/run` (JSON ou multipart avec la SFD) | `procedures.modeliser` |
 | GET | `/versions/{id}/proposals`, `/versions/{id}/runs`, `/runs`, `/agents` | `procedures.lire` |
 | POST | `/proposals/{id}/review`, `/versions/{id}/proposals/accept-all` | `procedures.modeliser` |
@@ -813,7 +881,7 @@ Toutes les routes sont préfixées par `/api/v1` sauf mention contraire.
 | POST | `/versions/{id}/submit` · `/reject` · `/approve` · `/publish` · `/retire` | modeliser · approuver · approuver · publier · publier |
 | GET | `/published`, `/published/{code}` | `procedures.lire` (détenu par `ADMINISTRATEUR_ESERVICES` pour le déploiement) |
 | GET / PUT | `/terminology`, `/terminology/circuits` | lire / modeliser |
-| GET | `/rdm/abies`, `/rdm/abies/{code}`, `/rdm/search`, `/rdm/resolve` | `procedures.lire` |
+| GET | `/rdm/abies`, `/rdm/abies/{code}`, `/rdm/search`, `/rdm/resolve`, `/rdm/untded`, `/rdm/untded/{tag}`, `/rdm/party-roles` | `procedures.lire` |
 | GET | `/journal` | `procedures.lire` |
 
 ### eservices

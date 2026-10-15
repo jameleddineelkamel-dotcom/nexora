@@ -86,8 +86,11 @@ public class RevueService {
         String auteur = Journal.utilisateur();
         switch (kind) {
             case "FIELD_MAPPING" -> {
-                int n = jdbc.sql("update studio.form_field set bie_path = :b where version_id = :v and code = :c")
-                        .param("b", texte(p, "biePath")).param("v", id).param("c", texte(p, "fieldCode")).update();
+                // Chemin BIE SCRDM et/ou référence UNTDED (ISO 7372) : seuls les éléments fournis sont modifiés
+                int n = jdbc.sql("""
+                        update studio.form_field set bie_path = coalesce(:b, bie_path), untded_ref = coalesce(:u, untded_ref)
+                         where version_id = :v and code = :c
+                        """).param("b", texte(p, "biePath")).param("u", texte(p, "untdedRef")).param("v", id).param("c", texte(p, "fieldCode")).update();
                 if (n == 0) throw ProceduresException.introuvable("Champ introuvable : " + texte(p, "fieldCode"));
             }
             case "REFDATA" -> jdbc.sql("update studio.form_field set refdata_table = :t, data_type = 'CODE' where version_id = :v and code = :c")
@@ -140,7 +143,7 @@ public class RevueService {
             case "SECTION" -> {
                 List<Section> l = new ArrayList<>(repo.sections(id).stream().filter(s -> !s.code().equals(texte(p, "code"))).toList());
                 l.add(new Section(texte(p, "code"), texte(p, "labelFr"), texte(p, "labelEn"), Boolean.TRUE.equals(p.get("repeating")),
-                        entier(p, "minRows"), entier(p, "sortOrder")));
+                        entier(p, "minRows"), entier(p, "sortOrder"), texte(p, "parentCode")));
                 l.sort(Comparator.comparingInt(Section::sortOrder));
                 repo.formulaire(id, l, repo.champs(id));
             }

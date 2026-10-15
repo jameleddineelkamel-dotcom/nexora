@@ -27,7 +27,7 @@ export class App {
 
   protected readonly nav = signal<Groupe[]>([
     { titre: '', liens: [{ lien: '/', icone: 'home', libelle: 'Tableau de bord', exact: true }, { lien: '/procedures', icone: 'workflow', libelle: 'Procédures' }] },
-    { titre: 'Référentiels', liens: [{ lien: '/terminologie', icone: 'tree', libelle: 'Terminologie GUCE' }, { lien: '/dictionnaire', icone: 'database', libelle: 'Dictionnaire SCRDM' }] },
+    { titre: 'Référentiels', liens: [{ lien: '/terminologie', icone: 'tree', libelle: 'Terminologie GUCE' }, { lien: '/dictionnaire', icone: 'database', libelle: 'Dictionnaire de données' }] },
     { titre: 'Gouvernance', liens: [{ lien: '/agents', icone: 'robot', libelle: 'Agents IA' }, { lien: '/journal', icone: 'history', libelle: 'Journal d\'audit' }] },
   ]);
 

@@ -50,11 +50,12 @@ Renseignez le **code** (majuscules, ex. `CERT_ORIGINE`), le **code CUR** à 3 le
 | Onglet | À faire | Aide des agents |
 |---|---|---|
 | **Général** | réglages d'exécution (pays, monnaie, fuseau, délai de paiement `P30D`, délai de traitement en heures, champs pivots, en-têtes et mention du livrable), **types de demande** (un code CUR par déclinaison, natures autorisées `INITIAL`, `RENEWAL`, `AMENDMENT`…), **acteurs**, **statuts** | Document Agent : acteurs et délai lus dans la SFD |
-| **Formulaire et données** | sections (dont groupes répétitifs, ex. produits), champs : type, longueur, format, obligation, liste (`REF_xxx` du Référentiel Commun, `@LIEUX_TRAITEMENT`, ou valeurs locales `code=FR\|EN`), références UNTDED / OMD / UN/CCL, **chemin BIE SCRDM**, critère de recherche, pré-remplissage depuis le registre, modifiable en amendement | Data Agent : chemin SCRDM D23B de chaque champ et liste du Référentiel Commun ; assistant SCRDM intégré |
-| **Pièces et frais** | pièces P1…Pn (obligatoires, ou conditionnelles : `champ == 'valeur'`), frais par bénéficiaire et par type / nature, livrables (code document, validité `FIN_ANNEE` / `UN_AN` / `AUCUNE`, champs imprimés) | Document Agent : tableau « composition du dossier » et « délais et coûts » de la SFD |
+| **Formulaire et données** | **gabarit d'IHM** (disposition continue, en onglets ou en étapes ; 1 à 4 colonnes ; densité ; libellés au-dessus ou à gauche ; modèles prédéfinis, import / export JSON), **sections et sous-sections** (colonne « Section parente », un niveau ; groupes répétitifs, ex. produits), champs : type, longueur, format, obligation, liste (`REF_xxx` du Référentiel Commun, `@LIEUX_TRAITEMENT`, ou valeurs locales `code=FR\|EN`), références UNTDED / OMD / UN/CCL, **chemin BIE SCRDM**, critère de recherche, pré-remplissage depuis le registre, modifiable en amendement | Data Agent : chemin SCRDM D23B de chaque champ (rôle de partie reconnu dans le libellé : « Nom de l'expéditeur » → `specifiedConsignment/consignor/name`), référence UNTDED 2005, liste du Référentiel Commun ; cas « plusieurs / aucune correspondance » du RDM Guideline ; assistant SCRDM intégré |
 | **Messages et flux** | catalogue des messages (type, format **JSON, XML, CSV ou TXT**, élément racine, champs et chemins, champs indexés) ; flux = usage ordonné des messages entre acteurs | — |
 | **Workflow BPMN** | ajuster le processus généré dans l'éditeur bpmn-js, ou l'exporter vers **Camunda Modeler**, le modifier, le réimporter | Single Window Agent (Process Design) : génère le BPMN et propose les statuts manquants |
-| **Règles DRL** | règles de validation métier (agenda-group `validation`), frais (agenda-group `frais`, généré), banc d'essai Drools | Rules Agent : régénère frais et pièces conditionnelles, signale les règles de gestion sans règle DRL |
+| **Règles DRL** | édition des règles de validation métier (agenda-group `validation`) et de frais (agenda-group `frais`, généré), **Compiler** (diagnostics Drools, règles déclarées), banc d'essai, **approbation** par un approbateur autre que le dernier auteur des règles (valable tant que le DRL ne change pas) | Rules Agent : régénère frais et pièces conditionnelles, signale les règles de gestion sans règle DRL |
+| **Frais** | frais par bénéficiaire et par type / nature | Document Agent : tableau « délais et coûts » de la SFD |
+| **Pièces jointes** | pièces P1…Pn (obligatoires, ou conditionnelles : `champ == 'valeur'`), livrables (code document, validité `FIN_ANNEE` / `UN_AN` / `AUCUNE`, champs imprimés) | Document Agent : tableau « composition du dossier » de la SFD |
 | **Agents IA** | joindre la SFD (.docx ou .txt) **et ses diagrammes** (.drawio, .bpmn — sélection multiple), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
 | **Contrôles et publication** | lever les erreurs du Compliance Agent, soumettre, faire approuver, publier | Compliance Agent |
 
@@ -106,6 +107,7 @@ Règles de l'import d'un diagramme :
 
 1. **Soumettre à revue** (concepteur) : refusé tant qu'il reste une erreur de conformité (terminologie, listes de codes,
    chemins BIE, flux sans message, BPMN illisible ou délégué inconnu, DRL qui ne compile pas…).
+   Une alerte (RG-GOV-05) rappelle de faire **approuver les règles DRL** (onglet Règles DRL) avant ou pendant la revue.
 2. **Approuver** (approbateur, une autre personne) ou **renvoyer en brouillon** avec un commentaire.
 3. **Publier** : le paquet JSON est figé, son empreinte SHA-256 enregistrée ; la version précédente devient « remplacée ».
 
@@ -180,7 +182,9 @@ Chemins : `$.a.b`, `$.liste[*].x` (JSON) ; `Racine/a/b` (XML) ; nom de colonne (
 
 `country`, `currency`, `timezone`, `paymentDelay`, `slaHours`, `cotation`, `processingLocationField`,
 `applicantField`, `previousField`, `renewalYearField`, `registryUpdate`, `documentHeaderFr`, `documentHeaderEn`,
-`documentMention`, `viewNames`, `bieContext` (Data Agent).
+`documentMention`, `viewNames`, `bieContext` (Data Agent), `ihm` (gabarit du formulaire :
+`{"disposition": "CONTINU|ONGLETS|ETAPES", "colonnes": 1-4, "densite": "COMPACTE|NORMALE|AEREE", "libelles": "DESSUS|COTE",
+"navigation": true, "resume": true, "repliables": false}`).
 
 ### Ce qui demande du développement
 

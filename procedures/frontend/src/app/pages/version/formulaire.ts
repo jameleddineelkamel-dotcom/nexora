@@ -5,6 +5,7 @@ import { erreurs } from '../../core/session';
 import { Colonne, Grille } from '../../shared/grille';
 import { Icon } from '../../shared/icon';
 import { Enregistrement } from './general';
+import { GabaritIhmComponent } from './ihm';
 
 const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 'EMAIL', 'PHONE', 'BOOLEAN', 'GEOLOCATION'];
 
@@ -15,11 +16,12 @@ const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 
  */
 @Component({
   selector: 'nx-onglet-formulaire',
-  imports: [Icon, Grille, ...I18N],
+  imports: [Icon, Grille, GabaritIhmComponent, ...I18N],
   template: `
+    <nx-gabarit-ihm [v]="v()" [modifiable]="modifiable()" (enregistrer)="enregistrer.emit($event)" />
     <div class="card pad stack">
-      <div class="card-title"><nx-icon name="layers" /><h2>{{ 'Sections' | t }}</h2></div>
-      <nx-grille [colonnes]="colSections" [donnees]="$any(v().sections)" [modele]="{ repeating: false, minRows: 0 }" [lectureSeule]="!modifiable()"
+      <div class="card-title"><nx-icon name="layers" /><h2>{{ 'Sections et sous-sections' | t }}</h2></div>
+      <nx-grille [colonnes]="colSections()" [donnees]="$any(v().sections)" [modele]="{ repeating: false, minRows: 0 }" [lectureSeule]="!modifiable()"
         (enregistrer)="enregistrer.emit({ partie: 'form', corps: { sections: $event.lignes, fields: v().fields }, motif: $event.motif })" />
     </div>
     <div class="card pad stack">
@@ -71,9 +73,12 @@ export class OngletFormulaire {
   protected readonly erreur = signal<string | null>(null);
   protected readonly avecBie = computed(() => this.v().fields.filter(f => f.biePath).length);
 
-  protected readonly colSections: Colonne[] = [
+  /** Sections et sous-sections : une section rattachée à une section de premier niveau s'affiche à l'intérieur de celle-ci. */
+  protected readonly colSections = computed<Colonne[]>(() => [
     { cle: 'code', libelle: 'Code', mono: true, largeur: 140 }, { cle: 'labelFr', libelle: 'Libellé (FR)', largeur: 240 }, { cle: 'labelEn', libelle: 'Libellé (EN)', largeur: 200 },
-    { cle: 'repeating', libelle: 'Répétitif', type: 'bool', largeur: 80 }, { cle: 'minRows', libelle: 'Lignes min.', type: 'number', largeur: 90 }];
+    { cle: 'parentCode', libelle: 'Section parente', type: 'select', largeur: 150, aide: 'Vide : section de premier niveau ; sinon sous-section (un seul niveau).',
+      options: this.v().sections.filter(s => !s.parentCode).map(s => ({ valeur: s.code, libelle: s.code })) },
+    { cle: 'repeating', libelle: 'Répétitif', type: 'bool', largeur: 80 }, { cle: 'minRows', libelle: 'Lignes min.', type: 'number', largeur: 90 }]);
 
   protected readonly colChamps = computed<Colonne[]>(() => [
     { cle: 'code', libelle: 'Code', mono: true, largeur: 190 },

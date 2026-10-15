@@ -32,7 +32,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/v1/config", "/actuator/health", "/actuator/info").permitAll()
                         // Cycle de vie : approuver / renvoyer, publier / retirer
-                        .requestMatchers(HttpMethod.POST, "/api/v1/versions/*/approve", "/api/v1/versions/*/reject").hasAuthority(APPROUVER)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/versions/*/approve", "/api/v1/versions/*/reject",
+                                "/api/v1/versions/*/rules/approve").hasAuthority(APPROUVER)
+                        // Compilation des règles : sans effet, ouverte à qui peut lire (l'approbateur compile avant d'approuver)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/versions/*/rules/compile").hasAnyAuthority(LIRE, MODELISER, APPROUVER)
                         .requestMatchers(HttpMethod.POST, "/api/v1/versions/*/publish", "/api/v1/versions/*/retire").hasAuthority(PUBLIER)
                         // Coupe-circuit des agents (AC-AG-06)
                         .requestMatchers(HttpMethod.PUT, "/api/v1/agents/**").hasAnyAuthority(APPROUVER, PUBLIER)

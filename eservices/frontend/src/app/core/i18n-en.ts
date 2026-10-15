@@ -124,4 +124,11 @@ export const EN: Record<string, string> = {
   'Le service eservices ne répond pas.': 'The eservices service is not responding.',
   "Données d'instruction": "Processing data",
   "Données saisies par l'organisme instructeur ; celles marquées * sont exigées pour une décision favorable.": "Data entered by the processing body; those marked * are required for a favourable decision.",
+  "Sections du formulaire": "Form sections",
+  "ligne(s)": "row(s)",
+  "Votre profil ({0}) n'a aucun droit sur les e-Services : il sert à une autre application de la plateforme (ex. le studio des procédures pour approuver et publier).": "Your profile ({0}) has no e-Services rights: it is meant for another platform application (e.g. the procedure studio to approve and publish).",
+  "Ouvrir le studio des procédures": "Open the procedure studio",
+  "Accès refusé : votre profil n'a pas le droit requis pour cette action.": "Access denied: your profile lacks the required right for this action.",
+  "Session expirée : reconnectez-vous.": "Session expired: sign in again.",
+  "Précédent": "Previous", "Suivant": "Next", "Étape {0} sur {1}": "Step {0} of {1}",
 };

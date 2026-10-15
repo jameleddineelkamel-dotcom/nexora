@@ -73,9 +73,33 @@ public class Conformite {
             if ("CONDITIONNEL".equals(f.mandatory()) && blanc(f.conditionText()))
                 c.add(Constat.alerte("FORMULAIRE", f.code(), "Champ conditionnel sans condition : « " + f.labelFr() + " »."));
             if (blanc(f.biePath())) sansBie++;
-            else if (rdm.resoudre(f.biePath()).isEmpty())
-                c.add(Constat.erreur("RG-REF-02", f.code(), "Chemin BIE introuvable dans le SCRDM D23B : " + f.biePath() + "."));
+            else {
+                var e = rdm.resoudre(f.biePath());
+                if (e.isEmpty())
+                    c.add(Constat.erreur("RG-REF-02", f.code(), rdm.excluParRestriction(f.biePath())
+                            ? "Chemin BIE exclu par une restriction contextuelle du SCRDM D23B : " + f.biePath() + "."
+                            : "Chemin BIE introuvable dans le SCRDM D23B : " + f.biePath() + "."));
+                // Valeurs locales d'un champ liste rattaché à un BBIE codé : elles doivent appartenir à la liste UN/CEFACT fermée
+                else if (f.codeValues() != null && !f.codeValues().isEmpty() && e.get().bie().codeList() != null) {
+                    String liste = e.get().bie().codeList();
+                    List<String> hors = f.codeValues().stream().map(CodeValue::code).filter(x -> !blanc(x) && !rdm.codeAdmis(liste, x.strip())).toList();
+                    if (!hors.isEmpty())
+                        c.add(Constat.alerte("RG-REF-04", f.code(), "Valeurs de « " + f.labelFr() + " » absentes de la liste " + liste
+                                + " du BBIE (" + String.join(", ", hors.subList(0, Math.min(hors.size(), 8))) + (hors.size() > 8 ? "…" : "") + ")."));
+                }
+            }
         }
+        if (rdm.untdedCharge())
+            v.fields().stream().filter(f -> !blanc(f.untdedRef()) && rdm.untded(f.untdedRef().strip()).isEmpty())
+                    .forEach(f -> c.add(Constat.alerte("RG-REF-03", f.code(), "Référence UNTDED inconnue (ISO 7372, édition 2005) : " + f.untdedRef() + ".")));
+        Map<String, Section> sections = new HashMap<>();
+        v.sections().forEach(s -> sections.put(s.code(), s));
+        for (Section s : v.sections())
+            if (!blanc(s.parentCode())) {
+                Section p = sections.get(s.parentCode());
+                if (p == null) c.add(Constat.alerte("FORMULAIRE", s.code(), "Sous-section « " + s.labelFr() + " » rattachée à une section inconnue : " + s.parentCode() + "."));
+                else if (!blanc(p.parentCode())) c.add(Constat.alerte("FORMULAIRE", s.code(), "Un seul niveau de sous-sections : « " + p.labelFr() + " » est déjà une sous-section."));
+            }
         if (sansBie > 0)
             c.add(Constat.alerte("RG-REF-02", "fields", sansBie + " champ(s) sans chemin BIE SCRDM : lancez le Data Agent pour les rapprocher."));
 
@@ -111,6 +135,11 @@ public class Conformite {
             List<String> erreurs = MoteurRegles.verifier(v.rules().drl());
             erreurs.forEach(e -> c.add(Constat.erreur("DRL", "rules", e)));
             if (erreurs.isEmpty()) c.add(Constat.info("DRL", "rules", "Les règles DRL compilent sans erreur (Drools)."));
+            if (v.rules().approuvees())
+                c.add(Constat.info("RG-GOV-05", "rules", "Règles DRL approuvées par " + v.rules().approvedBy() + "."));
+            else if (v.rules().approvedHash() != null)
+                c.add(Constat.alerte("RG-GOV-05", "rules", "Les règles DRL ont changé depuis leur approbation par " + v.rules().approvedBy() + " : faites-les approuver à nouveau."));
+            else c.add(Constat.alerte("RG-GOV-05", "rules", "Règles DRL non approuvées : un approbateur (autre que leur auteur) doit les approuver."));
         }
 
         // Livrables

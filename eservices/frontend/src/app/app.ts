@@ -31,7 +31,7 @@ export class App {
       { lien: '/demandes', icone: 'file', libelle: 'Mes demandes', droits: [DROITS.deposer] },
     ] },
     { titre: 'eGOV — administrations', liens: [
-      { lien: '/taches', icone: 'inbox', libelle: 'Mes tâches' },
+      { lien: '/taches', icone: 'inbox', libelle: 'Mes tâches', droits: [DROITS.traiter, DROITS.signer, DROITS.deposer] },
       { lien: '/dossiers', icone: 'list', libelle: 'Dossiers cotés', droits: [DROITS.traiter, DROITS.signer] },
     ] },
     { titre: 'Supervision', liens: [

@@ -31,6 +31,8 @@ export function erreurs(e: unknown, service = 'Le service'): string[] {
     if (e.status === 0) return [`${service} ne répond pas.`];
     if (e.error?.erreurs?.length) return e.error.erreurs;
     if (e.error?.detail) return [e.error.detail];
+    if (e.status === 403) return ["Accès refusé : votre profil n'a pas le droit requis pour cette action."];
+    if (e.status === 401) return ['Session expirée : reconnectez-vous.'];
     return [`Erreur ${e.status} ${e.statusText}`];
   }
   return [String(e)];

@@ -185,6 +185,28 @@ public class VersionService {
         return repo.complete(id);
     }
 
+    /**
+     * Approbation des règles DRL (avant ou pendant la revue) : le DRL doit compiler et l'approbateur ne peut pas être le
+     * dernier auteur des règles (RG-GOV-04). L'approbation vaut pour l'empreinte du DRL courant.
+     */
+    @Transactional
+    public RuleSet approuverRegles(long id, String note) {
+        Version v = repo.version(id).orElseThrow(() -> ProceduresException.introuvable("Version introuvable : " + id));
+        if (!List.of("draft", "in_review").contains(v.lifecycleStatus()))
+            throw ProceduresException.conflit("Les règles ne s'approuvent que sur une version brouillon ou en revue (statut : " + v.lifecycleStatus() + ").");
+        RuleSet r = repo.regles(id);
+        if (r == null || r.drl() == null || r.drl().isBlank()) throw ProceduresException.invalide("Aucune règle DRL à approuver.");
+        String moi = Journal.utilisateur();
+        if (moi.equals(r.updatedBy()))
+            throw ProceduresException.conflit("Séparation des tâches (RG-GOV-04) : le dernier auteur des règles (" + moi + ") ne peut pas les approuver.");
+        List<String> erreurs = com.nexora.regles.MoteurRegles.verifier(r.drl());
+        if (!erreurs.isEmpty()) throw ProceduresException.invalide(erreurs.stream().map(e -> "DRL — " + e).toList());
+        String empreinte = sha256(r.drl());
+        repo.approuverRegles(id, moi, OffsetDateTime.now(), empreinte, note == null || note.isBlank() ? null : note.strip());
+        journal.tracer("REGLES_APPROUVEES", v.procedureCode(), id, Map.of("hash", empreinte, "updatedBy", Objects.toString(r.updatedBy(), "")));
+        return repo.regles(id);
+    }
+
     @Transactional
     public VersionComplete renvoyer(long id, String commentaire) {
         Version v = repo.version(id).orElseThrow(() -> ProceduresException.introuvable("Version introuvable : " + id));

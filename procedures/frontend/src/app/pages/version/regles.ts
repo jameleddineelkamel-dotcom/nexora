@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { Api, VersionComplete } from '../../core/api';
-import { AuthService } from '../../core/auth.service';
+import { Api, ApprobationRegles, CompilationDrl, VersionComplete } from '../../core/api';
+import { AuthService, DROITS } from '../../core/auth.service';
 import { I18N } from '../../core/i18n';
 import { erreurs } from '../../core/session';
 import { Colonne, Grille } from '../../shared/grille';
@@ -20,12 +20,40 @@ import { Enregistrement } from './general';
       <div class="between">
         <div class="card-title"><nx-icon name="scale" /><h2>{{ 'Règles DRL (Drools)' | t }}</h2></div>
         <div class="row">
+          <button class="btn sm" (click)="compiler()" [disabled]="!drl().trim()"><nx-icon name="check" [size]="15" /> {{ 'Compiler' | t }}</button>
           @if (v().rules) { <a class="btn sm" [href]="auth.lien(api.urlDrl(v().version.id))"><nx-icon name="download" [size]="15" /> .drl</a> }
           @if (modifiable()) { <button class="btn primary sm" (click)="enregistrerDrl()" [disabled]="drl() === (v().rules?.drl ?? '')"><nx-icon name="save" [size]="15" /> {{ 'Enregistrer' | t }}</button> }
         </div>
       </div>
       <p class="muted small">{{ 'Faits : Demande (typeDemande, nature, texte(code), entier(code), aPiece(code), lignes(groupe), mandataire, titulaire, anneeCourante), Antecedent (dossiers du même demandeur), global Resultat (erreur, frais, variable). Les sections « generated » sont régénérées par le Rules Agent.' | t }}</p>
-      <textarea class="input code" [value]="drl()" (input)="drl.set($any($event.target).value)" [readonly]="!modifiable()" spellcheck="false"></textarea>
+      <textarea class="input code" [value]="drl()" (input)="drl.set($any($event.target).value); compilation.set(null)" [readonly]="!modifiable()" spellcheck="false"></textarea>
+      @if (compilation(); as c) {
+        @if (c.compiled) {
+          <div class="alert ok small"><b>{{ 'Compilation Drools réussie' | t }}</b> — {{ c.rules.length }} {{ 'règle(s)' | t }}{{ c.saved ? '' : ' · ' + ('non enregistré' | t) }}
+            <div>{{ c.rules.join(' · ') }}</div></div>
+        } @else {
+          <div class="alert err small"><b>{{ 'Erreurs de compilation' | t }}</b><ul>@for (e of c.errors; track $index) { <li class="mono">{{ e }}</li> }</ul></div>
+        }
+      }
+      <div class="approbation">
+        <div class="row">
+          <nx-icon name="shield" [size]="16" />
+          @if (approbation(); as a) {
+            @if (a.approved) { <span class="chip ok">{{ 'Règles approuvées' | t }}</span> <span class="muted small">{{ a.approvedBy }} · {{ (a.approvedAt ?? '').slice(0, 16).replace('T', ' ') }}</span> }
+            @else if (a.stale) { <span class="chip warn">{{ 'Approbation caduque : le DRL a changé' | t }}</span> <span class="muted small">{{ 'approuvées par' | t }} {{ a.approvedBy }}</span> }
+            @else { <span class="chip warn">{{ 'Règles non approuvées' | t }}</span> }
+            @if (a.updatedBy) { <span class="muted small">· {{ 'dernière modification' | t }} : {{ a.updatedBy }}</span> }
+          }
+        </div>
+        @if (auth.a(d.approuver) && ['draft', 'in_review'].includes(v().version.lifecycleStatus) && !approbation()?.approved) {
+          <div class="row">
+            <input class="input" style="min-width: 240px" [value]="note()" (input)="note.set($any($event.target).value)" [placeholder]="'Note d\\'approbation (facultative)' | t" />
+            <button class="btn primary sm" (click)="approuver()" [disabled]="occupe() || auteurRegles() || drl() !== (v().rules?.drl ?? '')"><nx-icon name="check" [size]="15" /> {{ 'Approuver les règles' | t }}</button>
+          </div>
+        }
+      </div>
+      @if (auth.a(d.approuver) && auteurRegles() && !approbation()?.approved) { <div class="muted small">{{ 'Séparation des tâches (RG-GOV-04) : le dernier auteur des règles ne peut pas les approuver.' | t }}</div> }
+      @if (erreurRegles()) { <div class="alert err small">{{ erreurRegles() }}</div> }
     </div>
     <div class="card pad stack">
       <div class="card-title"><nx-icon name="play" /><h2>{{ 'Banc d\\'essai des règles' | t }}</h2></div>
@@ -66,7 +94,8 @@ import { Enregistrement } from './general';
         (enregistrer)="enregistrer.emit({ partie: 'rules', corps: { drl: v().rules?.drl ?? drl(), businessRules: $event.lignes }, motif: $event.motif })" />
     </div>
   `,
-  styles: [`:host { display: flex; flex-direction: column; gap: 16px; } .bloc { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }`],
+  styles: [`:host { display: flex; flex-direction: column; gap: 16px; }
+    .approbation { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; } .bloc { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }`],
 })
 export class OngletRegles {
   protected readonly api = inject(Api);
@@ -83,6 +112,14 @@ export class OngletRegles {
   protected readonly champs = signal('{\n  "foreignerCitizen": "C",\n  "renewYear": "' + (new Date().getFullYear() + 1) + '"\n}');
   protected readonly resultat = signal<Record<string, unknown> | null>(null);
   protected readonly erreur = signal<string | null>(null);
+  protected readonly d = DROITS;
+  protected readonly erreurRegles = signal<string | null>(null);
+  protected readonly compilation = signal<CompilationDrl | null>(null);
+  protected readonly approbation = signal<ApprobationRegles | null>(null);
+  protected readonly note = signal('');
+  protected readonly occupe = signal(false);
+  /** Le dernier auteur des règles ne peut pas les approuver (RG-GOV-04). */
+  protected readonly auteurRegles = computed(() => !!this.v().rules?.updatedBy && this.v().rules?.updatedBy === this.auth.utilisateur()?.username);
   protected readonly natures = computed(() => this.v().requestTypes.find(t => t.code === this.type())?.natures ?? ['INITIAL']);
   protected readonly colRegles: Colonne[] = [
     { cle: 'code', libelle: 'Code', mono: true, largeur: 130 }, { cle: 'text', libelle: 'Règle', type: 'textarea', largeur: 420 },
@@ -92,6 +129,26 @@ export class OngletRegles {
     effect(() => {
       this.drl.set(this.v().rules?.drl ?? '');
       if (!this.type() && this.v().requestTypes.length) this.type.set(this.v().requestTypes[0].code);
+    });
+    effect(() => {
+      const r = this.v().rules;
+      this.compilation.set(null);
+      if (r) this.api.approbationRegles(this.v().version.id).subscribe({ next: a => this.approbation.set(a), error: () => this.approbation.set(null) });
+      else this.approbation.set(null);
+    });
+  }
+
+  protected compiler(): void {
+    this.erreurRegles.set(null);
+    this.api.compilerRegles(this.v().version.id, this.drl()).subscribe({ next: c => this.compilation.set(c), error: e => this.erreurRegles.set(erreurs(e).join(' ')) });
+  }
+
+  protected approuver(): void {
+    this.occupe.set(true);
+    this.erreurRegles.set(null);
+    this.api.approuverRegles(this.v().version.id, this.note()).subscribe({
+      next: a => { this.approbation.set(a); this.note.set(''); this.occupe.set(false); },
+      error: e => { this.erreurRegles.set(erreurs(e).join(' ')); this.occupe.set(false); },
     });
   }
 

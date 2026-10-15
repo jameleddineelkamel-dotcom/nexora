@@ -7,7 +7,7 @@ import { motif, params } from './session';
 export interface CodeValue { code: string; labelFr: string; labelEn: string | null; }
 export interface RequestType { code: string; labelFr: string; labelEn: string | null; curCode: string; natures: string[]; description: string | null; }
 export interface Nature { code: string; labelFr: string; labelEn: string; }
-export interface Section { code: string; labelFr: string; labelEn: string | null; repeating: boolean; minRows: number; sortOrder: number; }
+export interface Section { code: string; labelFr: string; labelEn: string | null; repeating: boolean; minRows: number; sortOrder: number; parentCode?: string | null; }
 export interface Field {
   code: string; sectionCode: string; labelFr: string; labelEn: string | null; dataType: string; maxLength: number | null; pattern: string | null;
   mandatory: 'OUI' | 'NON' | 'CONDITIONNEL'; conditionText: string | null; refdataTable: string | null; codeValues: CodeValue[] | null;
@@ -21,7 +21,7 @@ export interface Formulaire {
   procedure: { code: string; labelFr: string; labelEn: string | null; authority: string; description: string };
   versionNo: number; requestTypes: RequestType[]; natures: Nature[]; sections: Section[]; fields: Field[]; documents: RequiredDocument[];
   statuses: CaseStatus[]; deliverables: { code: string; labelFr: string }[];
-  settings: { processingLocationField: string; applicantField: string; previousField: string; renewalYearField: string; currency: string };
+  settings: { processingLocationField: string; applicantField: string; previousField: string; renewalYearField: string; currency: string; ihm?: Record<string, unknown> };
   locations: Lieu[];
 }
 export interface Procedure {

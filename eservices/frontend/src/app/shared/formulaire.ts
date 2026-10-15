@@ -7,27 +7,73 @@ import { CodePicker, Localisation } from './widgets';
 
 type Donnees = Record<string, unknown>;
 type Ligne = Record<string, unknown>;
+type Ihm = { disposition: 'CONTINU' | 'ONGLETS' | 'ETAPES'; colonnes: number | null; densite: 'COMPACTE' | 'NORMALE' | 'AEREE'; libelles: 'DESSUS' | 'COTE';
+  navigation: boolean; repliables: boolean };
+type Bloc = { s: Section; enfants: Section[] };
 
 /**
  * Formulaire généré à partir du paquet publié : sections, groupes répétitifs (ex. produits), listes de codes du
  * Référentiel Commun, lieux de traitement, localisation intelligente. En amendement, les champs non modifiables sont
- * verrouillés et les valeurs modifiées sont surlignées avec la valeur précédente (RG2 UC-03).
+ * verrouillés et les valeurs modifiées sont surlignées avec la valeur précédente (RG2 UC-03). Le gabarit d'IHM du studio
+ * choisit la disposition (continue, onglets, étapes), le nombre de colonnes, la densité et la position des libellés ;
+ * les sous-sections s'affichent à l'intérieur de leur section parente.
  */
 @Component({
   selector: 'nx-formulaire',
   imports: [NgTemplateOutlet, Icon, CodePicker, Localisation, ...I18N],
+  host: { '[attr.data-densite]': 'ihm().densite', '[attr.data-libelles]': 'ihm().libelles' },
   template: `
-    <div class="tabs mini" role="tablist">
-      @for (s of sections(); track s.code) {
-        <button type="button" class="tab" [class.on]="onglet() === s.code" (click)="onglet.set(s.code)" role="tab">
-          {{ s.labelFr | lib: s.labelEn }} @if (erreursSection(s.code)) { <span class="badge-n">{{ erreursSection(s.code) }}</span> }
-        </button>
-      }
-    </div>
-    @for (s of sections(); track s.code) {
-      @if (onglet() === s.code) {
+    @if (ihm().disposition === 'CONTINU' && ihm().navigation && blocs().length > 2) {
+      <nav class="nav-sec" [attr.aria-label]="'Sections du formulaire' | t">
+        @for (b of blocs(); track b.s.code) {
+          <button type="button" class="pastille" [class.err]="erreursBloc(b) > 0" (click)="aller(b.s.code)">
+            {{ b.s.labelFr | lib: b.s.labelEn }} @if (erreursBloc(b)) { <span class="badge-n">{{ erreursBloc(b) }}</span> }
+          </button>
+        }
+      </nav>
+    }
+    @if (ihm().disposition !== 'CONTINU' && blocs().length > 1) {
+      <nav class="onglets-sec" [class.etapes]="ihm().disposition === 'ETAPES'" role="tablist" [attr.aria-label]="'Sections du formulaire' | t">
+        @for (b of blocs(); track b.s.code; let i = $index) {
+          <button type="button" role="tab" class="onglet-sec" [class.on]="i === actif()" [class.fait]="ihm().disposition === 'ETAPES' && i < actif()"
+            [class.err]="erreursBloc(b) > 0" [attr.aria-selected]="i === actif()" (click)="actif.set(i)">
+            @if (ihm().disposition === 'ETAPES') { <span class="num">{{ i + 1 }}</span> }
+            {{ b.s.labelFr | lib: b.s.labelEn }} @if (erreursBloc(b)) { <span class="badge-n">{{ erreursBloc(b) }}</span> }
+          </button>
+        }
+      </nav>
+    }
+    @for (b of blocsVisibles(); track b.s.code) {
+      <section class="sec" [id]="ancre(b.s.code)">
+        @if (blocs().length > 1 && ihm().disposition === 'CONTINU') {
+          <h3 class="sec-titre" [class.repliable]="ihm().repliables" (click)="ihm().repliables && basculer(b.s.code)">
+            @if (ihm().repliables) { <nx-icon name="chevron" [size]="14" [class.ferme]="replie(b.s.code)" /> }
+            {{ b.s.labelFr | lib: b.s.labelEn }}
+            @if (b.s.repeating) { <span class="muted small">· {{ lignes(b.s.code).length }} {{ 'ligne(s)' | t }}</span> }</h3>
+        }
+        @if (!replie(b.s.code)) {
+          <ng-container *ngTemplateOutlet="corps; context: { s: b.s }" />
+          @for (e of b.enfants; track e.code) {
+            <div class="sous-sec" [id]="ancre(e.code)">
+              <h4 class="sous-titre">{{ e.labelFr | lib: e.labelEn }}
+                @if (e.repeating) { <span class="muted small">· {{ lignes(e.code).length }} {{ 'ligne(s)' | t }}</span> }</h4>
+              <ng-container *ngTemplateOutlet="corps; context: { s: e }" />
+            </div>
+          }
+        }
+      </section>
+    }
+    @if (ihm().disposition === 'ETAPES' && blocs().length > 1) {
+      <div class="pas">
+        <button type="button" class="btn" [disabled]="actif() === 0" (click)="actif.set(actif() - 1)">{{ 'Précédent' | t }}</button>
+        <span class="muted small">{{ 'Étape {0} sur {1}' | t: actif() + 1 : blocs().length }}</span>
+        <button type="button" class="btn" [disabled]="actif() >= blocs().length - 1" (click)="actif.set(actif() + 1)">{{ 'Suivant' | t }}</button>
+      </div>
+    }
+
+    <ng-template #corps let-s="s">
         @if (!s.repeating) {
-          <div class="form-grid">
+          <div class="grille" [class.cols]="!!ihm().colonnes" [style.--cols]="ihm().colonnes">
             @for (f of champs(s.code); track f.code) {
               <div class="field" [class.full]="f.dataType === 'LONGTEXT' || f.dataType === 'GEOLOCATION'">
                 <label [attr.for]="'c-' + f.code">{{ f.labelFr | lib: f.labelEn }} @if (obligatoire(f)) { <span class="req">*</span> }</label>
@@ -58,10 +104,9 @@ type Ligne = Record<string, unknown>;
             </table>
           </div>
           @if (erreur(s.code); as e) { <div class="alert err">{{ e }}</div> }
-          @if (!lectureSeule()) { <button type="button" class="btn" (click)="ajouterLigne(s)"><nx-icon name="plus" /> {{ 'Ajouter une ligne' | t }}</button> }
+          @if (!lectureSeule()) { <button type="button" class="btn sm" (click)="ajouterLigne(s)"><nx-icon name="plus" [size]="15" /> {{ 'Ajouter une ligne' | t }}</button> }
         }
-      }
-    }
+    </ng-template>
 
     <ng-template #saisie let-f="f" let-v="v" let-ligne="ligne" let-i="i">
       @switch (f.dataType) {
@@ -102,11 +147,54 @@ type Ligne = Record<string, unknown>;
     </ng-template>
   `,
   styles: [`
-    :host { display: flex; flex-direction: column; gap: 12px; }
+    :host { display: flex; flex-direction: column; gap: 14px; }
+    /* Navigation entre sections (formulaire continu) */
+    .nav-sec { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0 8px; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .pastille { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+      background: var(--surface-2); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+    .pastille:hover { border-color: var(--accent); color: var(--accent); }
+    .pastille.err { border-color: var(--danger); color: var(--danger); }
+    /* Sections enchaînées, grille dense */
+    .sec { display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 56px; }
+    .sec + .sec { padding-top: 12px; border-top: 1px dashed var(--line); }
+    .sec-titre { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--accent); text-transform: none; }
+    .grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 8px 12px; }
+    .grille.cols { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+    @media (max-width: 760px) { .grille.cols { grid-template-columns: 1fr; } }
+    /* Sous-sections : à l'intérieur de la section parente */
+    .sous-sec { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--accent-soft); scroll-margin-top: 56px; }
+    .sous-titre { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .sec-titre.repliable { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .sec-titre nx-icon { transition: transform .15s; transform: rotate(90deg); }
+    .sec-titre nx-icon.ferme { transform: none; }
+    /* Onglets et étapes */
+    .onglets-sec { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+    .onglet-sec { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+      background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .onglet-sec.on { color: var(--accent); border-bottom-color: var(--accent); }
+    .onglet-sec.err { color: var(--danger); }
+    .etapes .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); font-size: 11px; }
+    .etapes .on .num { background: var(--accent); color: #fff; }
+    .etapes .fait .num { background: var(--ok-soft); color: var(--ok); }
+    .pas { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    /* Densité et position des libellés (gabarit d'IHM) */
+    :host([data-densite="NORMALE"]) .grille { gap: 12px 16px; }
+    :host([data-densite="NORMALE"]) ::ng-deep .grille .input { height: 38px; font-size: 14px; }
+    :host([data-densite="AEREE"]) .grille { gap: 16px 20px; }
+    :host([data-densite="AEREE"]) ::ng-deep .grille .input { height: 42px; font-size: 14.5px; }
+    :host([data-densite="AEREE"]) .sec { gap: 12px; }
+    :host([data-libelles="COTE"]) .grille .field { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; align-items: center; column-gap: 8px; }
+    :host([data-libelles="COTE"]) .grille .field > .hint { grid-column: 2; }
+    .grille .full { grid-column: 1 / -1; }
+    .grille .field { gap: 3px; }
+    .grille .field > label { font-size: 11.5px; }
+    .grille .hint { font-size: 11px; line-height: 1.3; }
+    :host ::ng-deep .grille .input, :host ::ng-deep .repete .input { height: 34px; padding: 4px 9px; font-size: 13.5px; }
+    :host ::ng-deep .repete td { padding: 4px 6px; }
     .req { color: var(--danger); }
     .err-txt { color: var(--danger); }
     .avant { color: var(--warn); }
-    .repete td { vertical-align: top; min-width: 150px; }
+    .repete td { vertical-align: top; min-width: 130px; }
     .repete td:first-child { min-width: 30px; }
     .repete tbody tr { cursor: default; }
   `],
@@ -124,7 +212,23 @@ export class FormulaireDynamique {
   readonly sectionsMasquees = input<string[]>([]);
   readonly erreurs = input<{ champ: string; message: string; ligne: number | null }[]>([]);
   readonly modification = output<Donnees>();
-  protected readonly onglet = signal<string>('');
+  /** Préfixe des ancres de sections, propre à chaque formulaire de la page (demandeur, instruction). */
+  private readonly prefixe = 'sec-' + Math.random().toString(36).slice(2, 8) + '-';
+
+  /** Gabarit d'IHM de la procédure (réglage « ihm » du studio) ; sans gabarit : formulaire continu, grille automatique. */
+  protected readonly ihm = computed<Ihm>(() => {
+    const o = (this.form().settings.ihm ?? {}) as Partial<Record<keyof Ihm, unknown>>;
+    const un = <T extends string>(v: unknown, l: T[], d: T): T => (l.includes(v as T) ? (v as T) : d);
+    const n = Number(o.colonnes);
+    return {
+      disposition: un(o.disposition, ['CONTINU', 'ONGLETS', 'ETAPES'], 'CONTINU'), colonnes: n >= 1 && n <= 4 ? Math.round(n) : null,
+      densite: un(o.densite, ['COMPACTE', 'NORMALE', 'AEREE'], 'COMPACTE'), libelles: un(o.libelles, ['DESSUS', 'COTE'], 'DESSUS'),
+      navigation: o.navigation !== false, repliables: o.repliables === true,
+    };
+  });
+  /** Onglet ou étape affiché (dispositions ONGLETS et ETAPES). */
+  protected readonly actif = signal(0);
+  private readonly replies = signal<ReadonlySet<string>>(new Set());
 
   protected readonly sections = computed(() => {
     const s = [...this.form().sections].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -132,8 +236,45 @@ export class FormulaireDynamique {
     return s.filter(x => this.champs(x.code).length > 0 && !this.sectionsMasquees().includes(x.code));
   });
 
-  constructor() {
-    queueMicrotask(() => { if (!this.onglet() && this.sections().length) this.onglet.set(this.sections()[0].code); });
+  /** Sections de premier niveau et leurs sous-sections visibles ; une sous-section dont le parent est absent remonte au premier niveau. */
+  protected readonly blocs = computed<Bloc[]>(() => {
+    const toutes = [...this.form().sections].sort((a, b) => a.sortOrder - b.sortOrder);
+    const codes = new Set(toutes.map(s => s.code));
+    const visibles = new Set(this.sections().map(s => s.code));
+    const masquees = new Set(this.sectionsMasquees());
+    return toutes.filter(s => !s.parentCode || !codes.has(s.parentCode))
+      .filter(s => !masquees.has(s.code))
+      .map(s => ({ s, enfants: toutes.filter(e => e.parentCode === s.code && visibles.has(e.code)) }))
+      .filter(b => visibles.has(b.s.code) || b.enfants.length > 0);
+  });
+
+  protected readonly blocsVisibles = computed(() => {
+    const b = this.blocs();
+    if (this.ihm().disposition === 'CONTINU') return b;
+    return b.length ? [b[Math.min(this.actif(), b.length - 1)]] : [];
+  });
+
+  protected erreursBloc(b: Bloc): number {
+    return this.erreursSection(b.s.code) + b.enfants.reduce((n, e) => n + this.erreursSection(e.code), 0);
+  }
+
+  protected replie(code: string): boolean {
+    return this.ihm().repliables && this.replies().has(code);
+  }
+
+  protected basculer(code: string): void {
+    const s = new Set(this.replies());
+    if (s.has(code)) s.delete(code); else s.add(code);
+    this.replies.set(s);
+  }
+
+  protected ancre(section: string): string {
+    return this.prefixe + section;
+  }
+
+  /** Défilement vers une section (navigation par pastilles). */
+  protected aller(section: string): void {
+    document.getElementById(this.ancre(section))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private applicable(f: Field): boolean {

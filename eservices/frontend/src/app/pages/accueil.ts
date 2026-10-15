@@ -30,6 +30,10 @@ import { LIBELLES, NATURES, Statut } from '../shared/widgets';
         <div class="etape"><b>eGOV</b><span>{{ 'traitement' | t }}</span></div>
       </div>
     </section>
+    @if (sansDroit()) {
+      <div class="alert info"><nx-icon name="info" /> <div>{{ 'Votre profil ({0}) n'a aucun droit sur les e-Services : il sert à une autre application de la plateforme (ex. le studio des procédures pour approuver et publier).' | t: (auth.utilisateur()?.roles?.join(', ') ?? '') }}
+        <a [href]="studio()">{{ 'Ouvrir le studio des procédures' | t }}</a></div></div>
+    }
 
     @if (erreur()) { <div class="alert err">{{ erreur() }}</div> }
 
@@ -101,6 +105,9 @@ export class AccueilPage {
   protected readonly mesDossiers = signal<Ligne[]>([]);
   protected readonly taches = signal<Tache[]>([]);
   protected readonly erreur = signal<string | null>(null);
+  protected readonly studio = computed(() => this.auth.config().proceduresUrl ?? 'http://localhost:8084');
+  /** Aucun droit e-Services (ex. approbateur des procédures) : la page l'explique au lieu d'échouer. */
+  protected readonly sansDroit = computed(() => !Object.values(DROITS).some(d => d.startsWith('eservices.') && this.auth.a(d)));
   protected readonly enCours = computed(() => this.mesDossiers().filter(x => x.lifecycle === 'ACTIVE' && x.status !== 'EN_ATTENTE_PAIEMENT').length);
 
   constructor() {
@@ -109,7 +116,8 @@ export class AccueilPage {
       this.api.catalogue().subscribe({ next: c => this.catalogue.set(c), error: e });
       this.api.dossiers({ scope: 'mine', limit: 200 }).subscribe({ next: l => this.mesDossiers.set(l), error: e });
     }
-    this.api.taches().subscribe({ next: t => this.taches.set(t), error: e });
+    if (this.auth.a(DROITS.deposer) || this.auth.a(DROITS.traiter) || this.auth.a(DROITS.signer))
+      this.api.taches().subscribe({ next: t => this.taches.set(t), error: e });
   }
 
   protected compte(statut: string): number {

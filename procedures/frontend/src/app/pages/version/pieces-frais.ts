@@ -5,35 +5,42 @@ import { Colonne, Grille } from '../../shared/grille';
 import { Icon } from '../../shared/icon';
 import { Enregistrement } from './general';
 
-/** Pièces à fournir (avec conditions traduites en règles), frais par bénéficiaire et livrables. */
+/** Onglet « Frais » (frais par bénéficiaire) ou « Pièces jointes » (pièces à fournir, conditions traduites en règles, et livrables). */
 @Component({
   selector: 'nx-onglet-pieces-frais',
   imports: [Icon, Grille, ...I18N],
   template: `
+    @if (vue() === 'pieces') {
     <div class="card pad stack">
       <div class="card-title"><nx-icon name="archive" /><h2>{{ 'Pièces à fournir' | t }}</h2></div>
       <p class="muted small">{{ 'Une condition simple « champ == \\'valeur\\' » (combinable avec &&) est traduite en règle DRL par le Rules Agent. Types de demande : vide = tous.' | t }}</p>
       <nx-grille [colonnes]="colPieces" [donnees]="$any(v().documents)" [modele]="{ mandatory: true, requestTypes: [] }" [lectureSeule]="!modifiable()"
         (enregistrer)="enregistrer.emit({ partie: 'documents', corps: $event.lignes, motif: $event.motif })" />
     </div>
+    } @else {
     <div class="card pad stack">
       <div class="card-title"><nx-icon name="wallet" /><h2>{{ 'Frais et répartition' | t }}</h2></div>
       <p class="muted small">{{ 'Le Rules Agent génère l\\'agenda-group DRL « frais » à partir de ce tableau ; le montant total détermine si un paiement est requis.' | t }}</p>
       <nx-grille [colonnes]="colFrais()" [donnees]="$any(v().fees)" [modele]="{ currency: 'XAF', amount: 0, requestTypes: [], natures: ['INITIAL'] }" [lectureSeule]="!modifiable()"
         (enregistrer)="enregistrer.emit({ partie: 'fees', corps: $event.lignes, motif: $event.motif })" />
     </div>
+    }
+    @if (vue() === 'pieces') {
     <div class="card pad stack">
       <div class="card-title"><nx-icon name="shield" /><h2>{{ 'Livrables' | t }}</h2></div>
       <p class="muted small">{{ 'Numéro = CUR du dossier + code document (+ rang d\\'amendement). Validité : FIN_ANNEE (année budgétaire), UN_AN, AUCUNE.' | t }}</p>
       <nx-grille [colonnes]="colLivrables" [donnees]="$any(v().deliverables)" [modele]="{ validityRule: 'FIN_ANNEE', bodyFields: [] }" [lectureSeule]="!modifiable()"
         (enregistrer)="enregistrer.emit({ partie: 'deliverables', corps: $event.lignes, motif: $event.motif })" />
     </div>
+    }
   `,
   styles: [`:host { display: flex; flex-direction: column; gap: 16px; }`],
 })
 export class OngletPiecesFrais {
   readonly v = input.required<VersionComplete>();
   readonly modifiable = input(false);
+  /** Partie affichée : frais, ou pièces à fournir et livrables. */
+  readonly vue = input<'frais' | 'pieces'>('pieces');
   readonly enregistrer = output<Enregistrement>();
   protected readonly colPieces: Colonne[] = [
     { cle: 'code', libelle: 'Code', mono: true, largeur: 70 }, { cle: 'labelFr', libelle: 'Libellé (FR)', largeur: 300 }, { cle: 'labelEn', libelle: 'Libellé (EN)', largeur: 220 },

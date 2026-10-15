@@ -36,7 +36,13 @@ public final class Modele {
 
     public record CaseStatus(String code, String labelFr, String labelEn, boolean isFinal, String tone, int sortOrder) {}
 
-    public record Section(String code, String labelFr, String labelEn, boolean repeating, int minRows, int sortOrder) {}
+    /** Section du formulaire ; {@code parentCode} en fait une sous-section (un seul niveau d'imbrication). */
+    public record Section(String code, String labelFr, String labelEn, boolean repeating, int minRows, int sortOrder, String parentCode) {
+
+        public Section(String code, String labelFr, String labelEn, boolean repeating, int minRows, int sortOrder) {
+            this(code, labelFr, labelEn, repeating, minRows, sortOrder, null);
+        }
+    }
 
     public record CodeValue(String code, String labelFr, String labelEn) {}
 
@@ -77,7 +83,21 @@ public final class Modele {
     /** Règle de gestion en clair (RG / RM du SFD), sa source et la règle DRL qui la met en œuvre. */
     public record BusinessRule(String code, String text, String source, String drlRule) {}
 
-    public record RuleSet(String drl, List<BusinessRule> businessRules, OffsetDateTime updatedAt, String updatedBy) {}
+    /**
+     * Règles d'une version. L'approbation porte sur l'empreinte du DRL : toute modification du DRL la rend caduque
+     * ({@link #approuvees()} redevient faux) sans qu'il soit besoin de l'effacer.
+     */
+    public record RuleSet(String drl, List<BusinessRule> businessRules, OffsetDateTime updatedAt, String updatedBy,
+                          String approvedBy, OffsetDateTime approvedAt, String approvedHash) {
+
+        public RuleSet(String drl, List<BusinessRule> businessRules, OffsetDateTime updatedAt, String updatedBy) {
+            this(drl, businessRules, updatedAt, updatedBy, null, null, null);
+        }
+
+        public boolean approuvees() {
+            return approvedHash != null && drl != null && approvedHash.equals(VersionService.sha256(drl));
+        }
+    }
 
     public record Deliverable(String code, String labelFr, String labelEn, String docCode, String validityRule, String titleFr,
                               List<String> bodyFields, String signatureNote) {}

@@ -89,8 +89,12 @@ public class DossierController {
         m.put("documents", p.documents());
         m.put("statuses", p.statuses());
         m.put("deliverables", p.deliverables());
-        m.put("settings", Map.of("processingLocationField", p.reglage("processingLocationField", ""), "applicantField", p.reglage("applicantField", ""),
-                "previousField", p.reglage("previousField", ""), "renewalYearField", p.reglage("renewalYearField", ""), "currency", p.reglage("currency", "XAF")));
+        Map<String, Object> reglages = new LinkedHashMap<>(Map.of("processingLocationField", p.reglage("processingLocationField", ""),
+                "applicantField", p.reglage("applicantField", ""), "previousField", p.reglage("previousField", ""),
+                "renewalYearField", p.reglage("renewalYearField", ""), "currency", p.reglage("currency", "XAF")));
+        // Gabarit d'IHM conçu dans le studio (disposition, colonnes, densité…) : transmis tel quel au formulaire
+        if (p.settings() != null && p.settings().get("ihm") instanceof Map<?, ?> ihm) reglages.put("ihm", ihm);
+        m.put("settings", reglages);
         m.put("locations", cotation.lieux(true));
         return m;
     }

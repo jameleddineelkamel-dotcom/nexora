@@ -207,6 +207,45 @@ public class StudioController {
                              Map<String, List<Map<String, Object>>> groupes, List<String> pieces, boolean mandataire, boolean titulaire,
                              List<Antecedent> antecedents) {}
 
+    /** Compilation seule (Drools) du DRL soumis, ou à défaut du DRL enregistré : diagnostics, règles déclarées, empreinte. */
+    @PostMapping("/versions/{id}/rules/compile")
+    public Map<String, Object> compilerRegles(@PathVariable long id, @RequestBody(required = false) Map<String, String> corps) {
+        VersionComplete v = versions.complete(id);
+        String drl = corps != null && corps.get("drl") != null && !corps.get("drl").isBlank() ? corps.get("drl")
+                : v.rules() == null ? "" : v.rules().drl();
+        List<String> erreurs = drl.isBlank() ? List.of("Le DRL est vide.") : MoteurRegles.verifier(drl);
+        List<String> regles = new ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^\\s*rule\\s+\"([^\"]+)\"").matcher(drl);
+        while (m.find()) regles.add(m.group(1));
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("compiled", erreurs.isEmpty());
+        r.put("errors", erreurs);
+        r.put("rules", regles);
+        r.put("hash", VersionService.sha256(drl));
+        r.put("saved", v.rules() != null && drl.equals(v.rules().drl()));
+        return r;
+    }
+
+    /** État d'approbation des règles DRL (valable tant que le DRL n'a pas changé). */
+    @GetMapping("/versions/{id}/rules/approval")
+    public Map<String, Object> approbationRegles(@PathVariable long id) {
+        RuleSet r = versions.complete(id).rules();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("approved", r != null && r.approuvees());
+        m.put("approvedBy", r == null ? null : r.approvedBy());
+        m.put("approvedAt", r == null ? null : r.approvedAt());
+        m.put("stale", r != null && r.approvedHash() != null && !r.approuvees());
+        m.put("updatedBy", r == null ? null : r.updatedBy());
+        m.put("updatedAt", r == null ? null : r.updatedAt());
+        return m;
+    }
+
+    @PostMapping("/versions/{id}/rules/approve")
+    public Map<String, Object> approuverRegles(@PathVariable long id, @RequestBody(required = false) Map<String, String> corps) {
+        versions.approuverRegles(id, corps == null ? null : corps.get("note"));
+        return approbationRegles(id);
+    }
+
     @PostMapping("/versions/{id}/rules/test")
     public Map<String, Object> testerRegles(@PathVariable long id, @RequestBody TestRegles t) {
         VersionComplete v = versions.complete(id);

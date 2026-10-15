@@ -23,7 +23,8 @@ public record Paquet(String format, ProcedureInfo procedure, Map<String, Object>
 
     public record CaseStatus(String code, String labelFr, String labelEn, boolean isFinal, String tone, int sortOrder) {}
 
-    public record Section(String code, String labelFr, String labelEn, boolean repeating, int minRows, int sortOrder) {}
+    /** Section du formulaire ; {@code parentCode} en fait une sous-section. */
+    public record Section(String code, String labelFr, String labelEn, boolean repeating, int minRows, int sortOrder, String parentCode) {}
 
     public record CodeValue(String code, String labelFr, String labelEn) {}
 

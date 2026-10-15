@@ -68,14 +68,44 @@ public class DataAgent implements Agent {
         for (Field f : v.fields())
             if (f.biePath() == null || f.biePath().isBlank()) candidats.put(f.code(), candidats(f, bbies));
         Map<String, Arbitrage> arbitrages = arbitrer(v, candidats);
+        List<String> sansEquivalent = new ArrayList<>(), multiples = new ArrayList<>();
+        int untded = 0;
         for (Field f : v.fields()) {
+            Proposition mapping = null;
             if (f.biePath() == null || f.biePath().isBlank()) {
-                Optional<Proposition> p = rapprocher(f, candidats.get(f.code()), arbitrages.get(f.code()), contextes);
+                Optional<Proposition> p = parRole(f).or(() -> rapprocher(f, candidats.get(f.code()), arbitrages.get(f.code()), contextes));
                 if (p.isPresent()) {
-                    props.add(p.get());
+                    mapping = p.get();
                     rapproches++;
+                } else sansEquivalent.add(f.code());
+                List<Candidat> c = candidats.get(f.code());
+                if (p.isPresent() && !p.get().payload().containsKey("partyRole") && arbitrages.get(f.code()) == null && c.size() > 1 && c.getFirst().score() - c.get(1).score() < ECART)
+                    multiples.add(f.code());
+            }
+            // Référence UNTDED (ISO 7372) déduite du BBIE : jointe au rapprochement proposé, ou proposée seule
+            if (f.untdedRef() == null || f.untdedRef().isBlank()) {
+                String den = mapping != null ? String.valueOf(mapping.payload().get("den"))
+                        : f.biePath() == null || f.biePath().isBlank() ? null : rdm.resoudre(f.biePath()).map(e -> e.bie().den()).orElse(null);
+                var u = rdm.untdedPour(den);
+                if (u.isPresent()) {
+                    untded++;
+                    RdmService.Untded e = u.get().getKey();
+                    if (mapping != null) {
+                        Map<String, Object> pl = new LinkedHashMap<>(mapping.payload());
+                        pl.put("untdedRef", e.tag());
+                        pl.put("untdedName", e.name());
+                        mapping = new Proposition(mapping.kind(), mapping.target(), mapping.title() + " · UNTDED " + e.tag(), pl,
+                                mapping.rationale() + " Élément UNTDED " + e.tag() + " « " + e.name() + " » (" + Objects.toString(e.representation(), "?") + ").",
+                                mapping.sourceExcerpt(), mapping.type(), mapping.confidence());
+                    } else
+                        props.add(new Proposition("FIELD_MAPPING", f.code(), "« " + f.labelFr() + " » → UNTDED " + e.tag() + " " + e.name(),
+                                Map.of("fieldCode", f.code(), "untdedRef", e.tag(), "untdedName", e.name(), "den", den),
+                                "Le BBIE SCRDM « " + den + " » du champ correspond à l'élément UNTDED 2005 " + e.tag() + " « " + e.name()
+                                        + " » (même terme de représentation, propriété proche ; représentation " + Objects.toString(e.representation(), "?") + ").",
+                                Objects.toString(e.description(), ""), "inference", Math.round(u.get().getValue() * 100) / 100.0));
                 }
             }
+            if (mapping != null) props.add(mapping);
             if (f.refdataTable() == null || f.refdataTable().isBlank()) {
                 String cle = f.code().toLowerCase(Locale.ROOT);
                 LISTES.stream().filter(e -> cle.endsWith(e.getKey()) || cle.equals(e.getKey())).findFirst().ifPresent(e -> props.add(new Proposition(
@@ -86,8 +116,19 @@ public class DataAgent implements Agent {
                         Objects.toString(f.cclDen(), f.labelFr()), "inference", 0.9)));
             }
         }
+        // RDM Guideline UN/CEFACT §7.5 : cas « plusieurs correspondances » et « aucune correspondance »
+        if (!multiples.isEmpty())
+            props.add(new Proposition("FINDING", "rdm-multiples", multiples.size() + " champ(s) à correspondances multiples dans le SCRDM",
+                    Map.of("severity", "info", "rule", "RDM-GUIDE-2", "message", "Plusieurs éléments du SCRDM sont proches pour : " + String.join(", ", multiples)
+                            + ". Vérifiez l'usage du champ dans le processus (analyse BPA) avant d'accepter le rapprochement proposé."),
+                    "RDM Guideline v1.0.0.2, étape 5, cas 2 : une donnée correspond à plusieurs éléments du RDM.", null, "check", 0.8));
+        if (!sansEquivalent.isEmpty())
+            props.add(new Proposition("FINDING", "rdm-sans-equivalent", sansEquivalent.size() + " champ(s) sans équivalent dans le SCRDM D23B",
+                    Map.of("severity", "warning", "rule", "RDM-GUIDE-3", "message", "Aucun élément du SCRDM pour : " + String.join(", ", sansEquivalent)
+                            + ". Documentez-les comme extension nationale et, si besoin, soumettez une demande d'inclusion (DMR) à l'UN/CEFACT."),
+                    "RDM Guideline v1.0.0.2, étape 5, cas 3 : donnée sans correspondance directe dans le RDM.", null, "check", 0.8));
         long listes = props.stream().filter(p -> p.kind().equals("REFDATA")).count();
-        String resume = rapproches + " champ(s) rapproché(s) du SCRDM D23B, " + listes + " liste(s) de codes proposée(s) ; "
+        String resume = rapproches + " champ(s) rapproché(s) du SCRDM D23B, " + listes + " liste(s) de codes proposée(s), " + untded + " référence(s) UNTDED ; "
                 + v.fields().stream().filter(f -> f.biePath() != null && !f.biePath().isBlank()).count() + " champ(s) déjà rapproché(s).";
         if (!llm.disponible()) return Sortie.de(resume, props);
         return arbitrages.isEmpty() && candidats.values().stream().anyMatch(DataAgent::incertain)
@@ -188,11 +229,15 @@ public class DataAgent implements Agent {
             score = candidats.getFirst().score();
             if (score < 0.4) return Optional.empty();
         }
-        String racine = contextes.getOrDefault(f.sectionCode(), contextes.get("default"));
+        Optional<RdmService.RolePartie> role = rdm.rolePour(f.labelFr() + " " + Objects.toString(f.labelEn(), ""));
+        String racine = role.map(RdmService.RolePartie::biePath).orElse(contextes.getOrDefault(f.sectionCode(), contextes.get("default")));
         List<String> chemins = rdm.cheminsVers(meilleur.abie(), 6, 40);
         if (meilleur.abie().equals(RdmService.RACINE)) chemins = List.of("");
         if (chemins.isEmpty()) return Optional.empty();
-        String chemin = chemins.stream().filter(c -> c.equals(racine) || c.startsWith(racine + "/")).findFirst()
+        // Le rôle de partie fixe directement la racine quand il pointe sur l'ABIE du BBIE retenu (ex. …/consignor → tradeParty)
+        String abie = meilleur.abie();
+        boolean racineDirecte = rdm.resoudre(racine).map(e -> abie.equals(e.bie().target())).orElse(false);
+        String chemin = racineDirecte ? racine : chemins.stream().filter(c -> c.equals(racine) || c.startsWith(racine + "/")).findFirst()
                 .orElse(chemins.stream().min(Comparator.comparingInt(String::length)).orElseThrow());
         String complet = chemin.isEmpty() ? meilleur.property() : chemin + "/" + meilleur.property();
         boolean exact = meilleur.property().equalsIgnoreCase(f.code()) || jaccard(cible, jetons(meilleur.den())) >= 0.99;
@@ -211,9 +256,52 @@ public class DataAgent implements Agent {
                         + (f.cclDen() != null ? "le DEN UN/CCL « " + f.cclDen() + " »" : "le nom du champ") + " et le BBIE SCRDM « " + meilleur.den()
                         + " » (" + meilleur.cardinality() + ")";
         if (arbitrage != null) payload.put("arbitratedBy", llm.nom());
+        role.ifPresent(r -> payload.put("partyRole", r.code()));
         return Optional.of(new Proposition("FIELD_MAPPING", f.code(), "« " + f.labelFr() + " » → " + meilleur.den(), payload,
-                justification + ". Chemin choisi dans le contexte « " + racine + " ».",
+                justification + ". Chemin choisi dans le contexte « " + racine + " »"
+                        + role.map(r -> " (rôle « " + r.labelEn() + " » du RSM SCRDM)").orElse("") + ".",
                 Objects.toString(meilleur.definition(), ""), "inference", confiance));
+    }
+
+    /** Termes français des libellés et leur équivalent dans les noms de propriétés SCRDM. */
+    private static final Map<String, String> TERMES = Map.of("nom", "name", "raison sociale", "name", "denomination", "name",
+            "identifiant", "identifier", "numero", "identifier", "niu", "identifier", "matricule", "identifier",
+            "description", "description", "designation", "description");
+
+    /**
+     * Rapprochement par rôle de partie (RSM SCRDM) : « Nom de l'expéditeur » → rôle CONSIGNOR → ABIE de la partie
+     * (specifiedConsignment/consignor → tradeParty) → propriété dont tous les termes figurent dans le champ (name).
+     */
+    private Optional<Proposition> parRole(Field f) {
+        Optional<RdmService.RolePartie> role = rdm.rolePour(f.labelFr() + " " + Objects.toString(f.labelEn(), ""));
+        if (role.isEmpty()) return Optional.empty();
+        Optional<RdmService.Element> partie = rdm.resoudre(role.get().biePath());
+        if (partie.isEmpty() || partie.get().bie().target() == null) return Optional.empty();
+        Set<String> mots = jetons(separerCamel(f.code()) + " " + f.labelFr());
+        String libelle = " " + RdmService.normaliser(f.labelFr()) + " ";
+        TERMES.forEach((fr, en) -> { if (libelle.contains(" " + fr + " ")) mots.add(en); });
+        RdmService.Bie meilleur = null;
+        for (RdmService.Bie b : rdm.proprietes(partie.get().bie().target())) {
+            if (!b.kind().equals("BBIE")) continue;
+            Set<String> p = jetons(separerCamel(b.property()));
+            if (!p.isEmpty() && mots.containsAll(p) && (meilleur == null || p.size() > jetons(separerCamel(meilleur.property())).size()))
+                meilleur = b;
+        }
+        if (meilleur == null) return Optional.empty();
+        RdmService.RolePartie r = role.get();
+        String chemin = r.biePath() + "/" + meilleur.property();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fieldCode", f.code());
+        payload.put("biePath", chemin);
+        payload.put("den", meilleur.den());
+        payload.put("mappingType", "exact");
+        payload.put("cardinality", meilleur.cardinality());
+        payload.put("dataType", Objects.toString(meilleur.dataType(), ""));
+        payload.put("partyRole", r.code());
+        return Optional.of(new Proposition("FIELD_MAPPING", f.code(), "« " + f.labelFr() + " » → " + r.labelEn() + " · " + meilleur.den(), payload,
+                "Le libellé désigne le rôle « " + r.labelEn() + " » (" + r.labelFr() + ") du RSM SCRDM, rattaché à " + r.biePath()
+                        + " ; propriété « " + meilleur.property() + " » de la partie. Chemin : " + chemin + ".",
+                r.definition(), "inference", 0.85));
     }
 
     static Set<String> jetons(String s) {

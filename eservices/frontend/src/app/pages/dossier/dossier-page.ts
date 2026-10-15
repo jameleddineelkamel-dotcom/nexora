@@ -43,7 +43,7 @@ import { MessageDrawer } from './message-drawer';
         </div>
       </div>
 
-      <div class="colonnes">
+      <div class="colonnes" [class.seule]="!cote() || d()?.form?.settings?.ihm?.['resume'] === false">
         <div class="stack">
           @if (maTache(); as t) {
             <div class="card pad stack decision">
@@ -110,6 +110,7 @@ import { MessageDrawer } from './message-drawer';
           </div>
         </div>
 
+        @if (cote()) {
         <div class="stack">
           @if (x.paymentNotices.length) {
             <div class="card pad stack">
@@ -179,6 +180,7 @@ import { MessageDrawer } from './message-drawer';
             </div>
           }
         </div>
+        }
       </div>
     } @else if (!erreur()) { <div class="skeleton" style="height: 240px"></div> }
 
@@ -233,7 +235,9 @@ import { MessageDrawer } from './message-drawer';
   styles: [`
     :host { display: flex; flex-direction: column; gap: 16px; }
     h1 { margin: 4px 0; }
-    .colonnes { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+    .colonnes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 14px; align-items: start; }
+    .colonnes.seule { grid-template-columns: minmax(0, 1fr); }
+    @media (max-width: 1100px) { .colonnes { grid-template-columns: minmax(0, 1fr); } }
     .decision { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     .req { color: var(--danger); }
     tr.manque td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
@@ -285,6 +289,11 @@ export class DossierPage {
   protected readonly estDeposant = computed(() => this.d()?.dossier.submittedBy === this.auth.utilisateur()?.username);
   protected readonly maTache = computed<Tache | null>(() => this.d()?.tasks.find(t => t.assignee === this.auth.utilisateur()?.username) ?? null);
   protected readonly historiqueInverse = computed(() => [...(this.d()?.history ?? [])].reverse());
+  /** Colonne de droite (paiement, livrables, suivi, messages) : masquée tant qu'elle n'a rien à montrer (brouillon). */
+  protected readonly cote = computed(() => {
+    const x = this.d();
+    return !!x && (x.paymentNotices.length > 0 || x.documents.length > 0 || x.history.length > 0 || x.messages.length > 0 || x.cotation.length > 0);
+  });
   protected readonly piecesAttendues = computed<RequiredDocument[]>(() => {
     const x = this.d();
     if (!x) return [];
