@@ -55,13 +55,13 @@ Renseignez le **code** (majuscules, ex. `CERT_ORIGINE`), le **code CUR** à 3 le
 | **Workflow BPMN** | ajuster le processus généré dans l'éditeur bpmn-js, ou l'exporter vers **Camunda Modeler**, le modifier, le réimporter | Single Window Agent (Process Design) : génère le BPMN et propose les statuts manquants |
 | **Règles DRL** | édition des règles de validation métier (agenda-group `validation`) et de frais (agenda-group `frais`, généré), **Compiler** (diagnostics Drools, règles déclarées), banc d'essai, **approbation** par un approbateur autre que le dernier auteur des règles (valable tant que le DRL ne change pas) | Rules Agent : régénère frais et pièces conditionnelles, signale les règles de gestion sans règle DRL |
 | **Frais** | frais par bénéficiaire et par type / nature | Document Agent : tableau « délais et coûts » de la SFD |
-| **Agents IA** | joindre la SFD (.docx ou .txt) **et ses diagrammes** (.drawio, .bpmn — sélection multiple), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
-| **Contrôles et publication** | lever les erreurs du Compliance Agent, soumettre, faire approuver, publier | Compliance Agent |
 | **Pièces jointes** | pièces P1…Pn (obligatoires, ou conditionnelles : `champ == 'valeur'`) | Document Agent : tableau « composition du dossier » de la SFD |
 | **Livrables** | documents délivrés : code document, validité `FIN_ANNEE` / `UN_AN` / `AUCUNE`, titre, champs imprimés, mention de signature | — |
+| **Agents IA** | joindre la SFD (.docx ou .txt) **et ses diagrammes** (.drawio, .bpmn — sélection multiple), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
+| **Contrôles et publication** | lever les erreurs du Compliance Agent, soumettre, faire approuver, publier | Compliance Agent |
 
-Les onglets **Pièces jointes** et **Livrables** sont en dernier, dans le studio comme dans e-Services : dans le dossier
-du demandeur, ils suivent les onglets (ou étapes, ou sections) du formulaire ; l'onglet des pièces affiche le nombre de
+Dans le studio, les onglets **Pièces jointes** et **Livrables** suivent l'onglet **Frais**. Dans le dossier e-Services du
+demandeur, ils viennent en dernier, après les onglets les onglets (ou étapes, ou sections) du formulaire ; l'onglet des pièces affiche le nombre de
 pièces obligatoires manquantes. Les fichiers sont rangés dans MinIO lorsqu'il est configuré
 ([stockage des fichiers](stockage-des-fichiers.md)).
 

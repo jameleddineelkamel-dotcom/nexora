@@ -97,9 +97,9 @@ export class VersionPage {
     { code: 'general', libelle: 'Général', icone: 'info' }, { code: 'formulaire', libelle: 'Formulaire et données', icone: 'file' },
     { code: 'messages', libelle: 'Messages et flux', icone: 'mail' }, { code: 'workflow', libelle: 'Workflow BPMN', icone: 'workflow' },
     { code: 'regles', libelle: 'Règles DRL', icone: 'scale' }, { code: 'frais', libelle: 'Frais', icone: 'wallet' },
-    { code: 'agents', libelle: 'Agents IA', icone: 'robot' }, { code: 'publication', libelle: 'Contrôles et publication', icone: 'shield' },
-    // Pièces jointes et livrables en dernier
-    { code: 'pieces', libelle: 'Pièces jointes', icone: 'archive' }, { code: 'livrables', libelle: 'Livrables', icone: 'stamp' }];
+    // Pièces jointes et livrables juste après les frais
+    { code: 'pieces', libelle: 'Pièces jointes', icone: 'archive' }, { code: 'livrables', libelle: 'Livrables', icone: 'stamp' },
+    { code: 'agents', libelle: 'Agents IA', icone: 'robot' }, { code: 'publication', libelle: 'Contrôles et publication', icone: 'shield' }];
 
   constructor() {
     effect(() => { this.id(); this.charger(); });
