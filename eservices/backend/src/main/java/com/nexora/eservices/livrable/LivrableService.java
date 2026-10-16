@@ -5,6 +5,7 @@ import com.google.zxing.EncodeHintType;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+import com.nexora.eservices.stockage.StockageObjet;
 import com.nexora.eservices.deploiement.DeploiementService;
 import com.nexora.eservices.deploiement.Paquet;
 import com.nexora.eservices.dossier.Dossier;
@@ -60,12 +61,14 @@ public class LivrableService {
     private final JdbcClient jdbc;
     private final DeploiementService deploiements;
     private final DossierService dossiers;
+    private final StockageObjet stockage;
     private final String urlPublique;
     private final byte[] cle;
 
-    public LivrableService(JdbcClient jdbc, DeploiementService deploiements, DossierService dossiers,
+    public LivrableService(JdbcClient jdbc, DeploiementService deploiements, DossierService dossiers, StockageObjet stockage,
                            @Value("${nexora.eservices.public-url}") String urlPublique, @Value("${nexora.eservices.seal-secret:}") String secret) {
         this.jdbc = jdbc;
+        this.stockage = stockage;
         this.deploiements = deploiements;
         this.dossiers = dossiers;
         this.urlPublique = urlPublique.replaceAll("/$", "");
@@ -111,15 +114,22 @@ public class LivrableService {
         String cachet = cachet(numero, d.applicantNiu(), au, signataire);
         byte[] pdf = pdf(p, l, d, numero, version, du, au, nomSignataire, signeLe, qr, cachet, false);
         String nomFichier = numero + ".pdf";   // nom de fichier = numéro du document (§10.14)
+        // MinIO configuré : le PDF signé va dans le compartiment, la ligne n'en garde que la clé
+        String cleObjet = stockage.actif() ? stockage.deposer(cleLivrable(numero), pdf, "application/pdf") : null;
         long id = jdbc.sql("""
                 insert into wfe.issued_document (dossier_id, deliverable_code, doc_no, base_doc_no, version_no, holder_niu, holder_name, request_type,
-                  valid_from, valid_until, signed_at, signed_by, signer_name, qr_text, seal_text, file_name, content, sha256)
-                values (:d, :c, :n, :b, :v, :niu, :nom, :t, :du, :au, :s, :sb, :sn, :qr, :ca, :f, :pdf, :h) returning document_id
+                  valid_from, valid_until, signed_at, signed_by, signer_name, qr_text, seal_text, file_name, content, storage_key, sha256)
+                values (:d, :c, :n, :b, :v, :niu, :nom, :t, :du, :au, :s, :sb, :sn, :qr, :ca, :f, :pdf, :k, :h) returning document_id
                 """).param("d", d.id()).param("c", code).param("n", numero).param("b", base).param("v", version).param("niu", d.applicantNiu())
                 .param("nom", d.applicantName()).param("t", d.requestType()).param("du", du).param("au", au).param("s", signeLe).param("sb", signataire)
-                .param("sn", nomSignataire).param("qr", qr).param("ca", cachet).param("f", nomFichier).param("pdf", pdf).param("h", sha256(pdf))
+                .param("sn", nomSignataire).param("qr", qr).param("ca", cachet).param("f", nomFichier).param("pdf", cleObjet == null ? pdf : null).param("k", cleObjet).param("h", sha256(pdf))
                 .query(Long.class).single();
         return document(id);
+    }
+
+    /** Clé d'un livrable dans le compartiment : livrables/{numéro}.pdf. */
+    public static String cleLivrable(String numero) {
+        return "livrables/" + numero + ".pdf";
     }
 
     /** Aperçu en mode brouillon avec filigrane (RG1 UC-04) : rien n'est enregistré. */
@@ -173,7 +183,8 @@ public class LivrableService {
     public Map.Entry<Document, byte[]> fichier(String numero) {
         Document doc = parNumero(numero).orElseThrow(() -> EservicesException.introuvable("Document introuvable : " + numero));
         dossiers.lire(doc.dossierId());
-        byte[] contenu = jdbc.sql("select content from wfe.issued_document where doc_no = :n").param("n", numero).query(byte[].class).single();
+        byte[] contenu = jdbc.sql("select content, storage_key from wfe.issued_document where doc_no = :n").param("n", numero)
+                .query((rs, i) -> rs.getBytes(1) != null ? rs.getBytes(1) : stockage.lire(rs.getString(2))).single();
         return Map.entry(doc, contenu);
     }
 

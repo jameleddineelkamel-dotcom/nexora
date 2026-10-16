@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, TemplateRef, computed, inject, input, output, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Field, Formulaire, Section } from '../core/api';
 import { I18N, I18n } from '../core/i18n';
@@ -14,6 +14,9 @@ type Ihm = { disposition: 'CONTINU' | 'ONGLETS' | 'ETAPES'; colonnes: number | n
   champs: Record<string, ReglageChamp> };
 type Bloc = { s: Section; enfants: Section[] };
 
+/** Onglet ajouté par la page après les sections du formulaire : libellés, pastille de compte (ex. pièces manquantes) et contenu. */
+export interface OngletSup { code: string; labelFr: string; labelEn?: string | null; badge?: number; modele: TemplateRef<unknown> }
+
 /**
  * Formulaire généré à partir du paquet publié : sections, groupes répétitifs (ex. produits), listes de codes du
  * Référentiel Commun, lieux de traitement, localisation intelligente. En amendement, les champs non modifiables sont
@@ -27,22 +30,36 @@ type Bloc = { s: Section; enfants: Section[] };
   imports: [NgTemplateOutlet, Icon, CodePicker, Localisation, ...I18N],
   host: { '[attr.data-densite]': 'ihm().densite', '[attr.data-libelles]': 'ihm().libelles' },
   template: `
-    @if (ihm().disposition === 'CONTINU' && ihm().navigation && blocs().length > 2) {
+    @if (ihm().disposition === 'CONTINU' && ihm().navigation && total() > 2) {
       <nav class="nav-sec" [attr.aria-label]="'Sections du formulaire' | t">
         @for (b of blocs(); track b.s.code) {
           <button type="button" class="pastille" [class.err]="erreursBloc(b) > 0" (click)="aller(b.s.code)">
             {{ b.s.labelFr | lib: b.s.labelEn }} @if (erreursBloc(b)) { <span class="badge-n">{{ erreursBloc(b) }}</span> }
           </button>
         }
+        @for (o of ongletsSup(); track o.code) {
+          <button type="button" class="pastille" [class.err]="!!o.badge" (click)="aller(o.code)">
+            {{ o.labelFr | lib: o.labelEn }} @if (o.badge) { <span class="badge-n">{{ o.badge }}</span> }
+          </button>
+        }
       </nav>
     }
-    @if (ihm().disposition !== 'CONTINU' && blocs().length > 1) {
+    @if (ihm().disposition !== 'CONTINU' && total() > 1) {
       <nav class="onglets-sec" [class.etapes]="ihm().disposition === 'ETAPES'" role="tablist" [attr.aria-label]="'Sections du formulaire' | t">
         @for (b of blocs(); track b.s.code; let i = $index) {
-          <button type="button" role="tab" class="onglet-sec" [class.on]="i === actif()" [class.fait]="ihm().disposition === 'ETAPES' && i < actif()"
-            [class.err]="erreursBloc(b) > 0" [attr.aria-selected]="i === actif()" (click)="actif.set(i)">
+          <button type="button" role="tab" class="onglet-sec" [class.on]="i === actifBorne()" [class.fait]="ihm().disposition === 'ETAPES' && i < actifBorne()"
+            [class.err]="erreursBloc(b) > 0" [attr.aria-selected]="i === actifBorne()" (click)="actif.set(i)">
             @if (ihm().disposition === 'ETAPES') { <span class="num">{{ i + 1 }}</span> }
             {{ b.s.labelFr | lib: b.s.labelEn }} @if (erreursBloc(b)) { <span class="badge-n">{{ erreursBloc(b) }}</span> }
+          </button>
+        }
+        <!-- Onglets propres à la page (pièces jointes, livrables), toujours en dernier -->
+        @for (o of ongletsSup(); track o.code; let k = $index) {
+          <button type="button" role="tab" class="onglet-sec" [class.on]="blocs().length + k === actifBorne()"
+            [class.fait]="ihm().disposition === 'ETAPES' && blocs().length + k < actifBorne()" [class.err]="!!o.badge"
+            [attr.aria-selected]="blocs().length + k === actifBorne()" (click)="actif.set(blocs().length + k)">
+            @if (ihm().disposition === 'ETAPES') { <span class="num">{{ blocs().length + k + 1 }}</span> }
+            {{ o.labelFr | lib: o.labelEn }} @if (o.badge) { <span class="badge-n">{{ o.badge }}</span> }
           </button>
         }
       </nav>
@@ -81,11 +98,17 @@ type Bloc = { s: Section; enfants: Section[] };
         }
       </section>
     }
-    @if (ihm().disposition === 'ETAPES' && blocs().length > 1) {
+    @for (o of ongletsSupVisibles(); track o.code) {
+      <section class="sec" [id]="ancre(o.code)">
+        @if (ihm().disposition === 'CONTINU' && total() > 1) { <h3 class="sec-titre">{{ o.labelFr | lib: o.labelEn }}</h3> }
+        <ng-container *ngTemplateOutlet="o.modele" />
+      </section>
+    }
+    @if (ihm().disposition === 'ETAPES' && total() > 1) {
       <div class="pas">
-        <button type="button" class="btn" [disabled]="actif() === 0" (click)="actif.set(actif() - 1)">{{ 'Précédent' | t }}</button>
-        <span class="muted small">{{ 'Étape {0} sur {1}' | t: actif() + 1 : blocs().length }}</span>
-        <button type="button" class="btn" [disabled]="actif() >= blocs().length - 1" (click)="actif.set(actif() + 1)">{{ 'Suivant' | t }}</button>
+        <button type="button" class="btn" [disabled]="actifBorne() === 0" (click)="actif.set(actifBorne() - 1)">{{ 'Précédent' | t }}</button>
+        <span class="muted small">{{ 'Étape {0} sur {1}' | t: actifBorne() + 1 : total() }}</span>
+        <button type="button" class="btn" [disabled]="actifBorne() >= total() - 1" (click)="actif.set(actifBorne() + 1)">{{ 'Suivant' | t }}</button>
       </div>
     }
 
@@ -238,6 +261,8 @@ export class FormulaireDynamique {
   /** Sections non affichées (ex. INSTRUCTION, saisie par l'organisme instructeur, absente du formulaire du demandeur). */
   readonly sectionsMasquees = input<string[]>([]);
   readonly erreurs = input<{ champ: string; message: string; ligne: number | null }[]>([]);
+  /** Onglets propres à la page (pièces jointes, livrables…), affichés après les sections, quelle que soit la disposition. */
+  readonly ongletsSup = input<OngletSup[]>([]);
   readonly modification = output<Donnees>();
   /** Préfixe des ancres de sections, propre à chaque formulaire de la page (demandeur, instruction). */
   private readonly prefixe = 'sec-' + Math.random().toString(36).slice(2, 8) + '-';
@@ -277,11 +302,31 @@ export class FormulaireDynamique {
       .filter(b => visibles.has(b.s.code) || b.enfants.length > 0);
   });
 
+  /** Nombre d'onglets ou d'étapes : sections de premier niveau puis onglets propres à la page. */
+  protected readonly total = computed(() => this.blocs().length + this.ongletsSup().length);
+  protected readonly actifBorne = computed(() => Math.max(0, Math.min(this.actif(), this.total() - 1)));
+
   protected readonly blocsVisibles = computed(() => {
     const b = this.blocs();
     if (this.ihm().disposition === 'CONTINU') return b;
-    return b.length ? [b[Math.min(this.actif(), b.length - 1)]] : [];
+    return this.actifBorne() < b.length ? [b[this.actifBorne()]] : [];
   });
+
+  /** Onglets propres à la page affichés : tous à la suite en continu, sinon celui qui est sélectionné. */
+  protected readonly ongletsSupVisibles = computed(() => {
+    const o = this.ongletsSup();
+    if (this.ihm().disposition === 'CONTINU') return o;
+    const k = this.actifBorne() - this.blocs().length;
+    return k >= 0 && k < o.length ? [o[k]] : [];
+  });
+
+  /** Affiche un onglet propre à la page (ex. « Pièces jointes » après une erreur de pièce manquante). */
+  montrerOnglet(code: string): void {
+    const k = this.ongletsSup().findIndex(o => o.code === code);
+    if (k < 0) return;
+    if (this.ihm().disposition === 'CONTINU') this.aller(code);
+    else this.actif.set(this.blocs().length + k);
+  }
 
   protected erreursBloc(b: Bloc): number {
     return this.erreursSection(b.s.code) + b.enfants.reduce((n, e) => n + this.erreursSection(e.code), 0);

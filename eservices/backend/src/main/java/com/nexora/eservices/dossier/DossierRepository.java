@@ -1,5 +1,6 @@
 package com.nexora.eservices.dossier;
 
+import com.nexora.eservices.stockage.StockageObjet;
 import com.nexora.eservices.web.Json;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -28,10 +29,12 @@ public class DossierRepository {
 
     private final JdbcClient jdbc;
     private final Json json;
+    private final StockageObjet stockage;
 
-    public DossierRepository(JdbcClient jdbc, Json json) {
+    public DossierRepository(JdbcClient jdbc, Json json, StockageObjet stockage) {
         this.jdbc = jdbc;
         this.json = json;
+        this.stockage = stockage;
     }
 
     Dossier ligne(ResultSet rs) throws SQLException {
@@ -127,11 +130,13 @@ public class DossierRepository {
     public long ajouterPiece(UUID id, String code, String nom, String type, byte[] contenu, String empreinte, String source, String auteur) {
         // Une pièce remplace la précédente du même code (l'ancienne est conservée, inactive)
         jdbc.sql("update wfe.attachment set is_active = false where dossier_id = :i and doc_code = :c and is_active").param("i", id).param("c", code).update();
+        // MinIO configuré : le fichier va dans le compartiment, la ligne n'en garde que la clé
+        String cle = stockage.actif() ? stockage.deposer(clePiece(id, code, empreinte), contenu, type) : null;
         return jdbc.sql("""
-                insert into wfe.attachment (dossier_id, doc_code, file_name, mime_type, size_bytes, sha256, content, source, uploaded_by)
-                values (:i, :c, :n, :t, :s, :h, :b, :src, :u) returning attachment_id
+                insert into wfe.attachment (dossier_id, doc_code, file_name, mime_type, size_bytes, sha256, content, storage_key, source, uploaded_by)
+                values (:i, :c, :n, :t, :s, :h, :b, :k, :src, :u) returning attachment_id
                 """).param("i", id).param("c", code).param("n", nom).param("t", type).param("s", contenu.length).param("h", empreinte)
-                .param("b", contenu).param("src", source).param("u", auteur).query(Long.class).single();
+                .param("b", cle == null ? contenu : null).param("k", cle).param("src", source).param("u", auteur).query(Long.class).single();
     }
 
     public void retirerPiece(UUID id, long piece) {
@@ -139,8 +144,19 @@ public class DossierRepository {
     }
 
     public Optional<Map.Entry<Piece, byte[]>> contenuPiece(UUID id, long piece) {
-        return jdbc.sql("select attachment_id, doc_code, file_name, mime_type, size_bytes, sha256, source, uploaded_by, uploaded_at, content from wfe.attachment where dossier_id = :i and attachment_id = :p")
+        return jdbc.sql("select attachment_id, doc_code, file_name, mime_type, size_bytes, sha256, source, uploaded_by, uploaded_at, content, storage_key from wfe.attachment where dossier_id = :i and attachment_id = :p")
                 .param("i", id).param("p", piece).query((rs, i) -> Map.entry(new Piece(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                        rs.getLong(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getObject(9, OffsetDateTime.class)), rs.getBytes(10))).optional();
+                        rs.getLong(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getObject(9, OffsetDateTime.class)),
+                        contenu(rs.getBytes(10), rs.getString(11)))).optional();
+    }
+
+    /** Contenu d'un fichier : en base, ou dans MinIO sous sa clé. */
+    private byte[] contenu(byte[] enBase, String cle) {
+        return enBase != null ? enBase : stockage.lire(cle);
+    }
+
+    /** Clé d'une pièce dans le compartiment : pieces/{dossier}/{code}-{empreinte}. */
+    public static String clePiece(UUID dossier, String code, String empreinte) {
+        return "pieces/" + dossier + "/" + code + "-" + empreinte;
     }
 }

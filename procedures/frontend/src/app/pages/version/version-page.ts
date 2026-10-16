@@ -15,7 +15,7 @@ import { OngletRegles } from './regles';
 import { OngletAgents } from './agents';
 import { OngletPublication } from './publication';
 
-type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'frais' | 'pieces' | 'agents' | 'publication';
+type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'frais' | 'agents' | 'publication' | 'pieces' | 'livrables';
 
 /**
  * Atelier d'une version de procédure : chaque onglet édite une partie (enregistrée avec un motif), les agents IA
@@ -65,6 +65,7 @@ type Onglet = 'general' | 'formulaire' | 'messages' | 'workflow' | 'regles' | 'f
         @case ('formulaire') { <nx-onglet-formulaire [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" (regles)="onglet.set('regles')" /> }
         @case ('frais') { <nx-onglet-pieces-frais vue="frais" [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('pieces') { <nx-onglet-pieces-frais vue="pieces" [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
+        @case ('livrables') { <nx-onglet-pieces-frais vue="livrables" [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('messages') { <nx-onglet-messages [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('workflow') { <nx-onglet-workflow [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
         @case ('regles') { <nx-onglet-regles [v]="x" [modifiable]="modifiable()" (enregistrer)="enregistrer($event.partie, $event.corps, $event.motif)" /> }
@@ -96,8 +97,9 @@ export class VersionPage {
     { code: 'general', libelle: 'Général', icone: 'info' }, { code: 'formulaire', libelle: 'Formulaire et données', icone: 'file' },
     { code: 'messages', libelle: 'Messages et flux', icone: 'mail' }, { code: 'workflow', libelle: 'Workflow BPMN', icone: 'workflow' },
     { code: 'regles', libelle: 'Règles DRL', icone: 'scale' }, { code: 'frais', libelle: 'Frais', icone: 'wallet' },
-    { code: 'pieces', libelle: 'Pièces jointes', icone: 'archive' },
-    { code: 'agents', libelle: 'Agents IA', icone: 'robot' }, { code: 'publication', libelle: 'Contrôles et publication', icone: 'shield' }];
+    { code: 'agents', libelle: 'Agents IA', icone: 'robot' }, { code: 'publication', libelle: 'Contrôles et publication', icone: 'shield' },
+    // Pièces jointes et livrables en dernier
+    { code: 'pieces', libelle: 'Pièces jointes', icone: 'archive' }, { code: 'livrables', libelle: 'Livrables', icone: 'stamp' }];
 
   constructor() {
     effect(() => { this.id(); this.charger(); });

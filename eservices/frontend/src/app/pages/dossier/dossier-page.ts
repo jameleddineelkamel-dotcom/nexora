@@ -71,43 +71,17 @@ import { MessageDrawer } from './message-drawer';
           }
 
           <div class="card pad">
-            <div class="card-title"><nx-icon name="file" /><h2>{{ 'Formulaire' | t }}</h2>
+            <div class="card-title"><nx-icon name="file" /><h2>{{ 'Formulaire, pièces et livrables' | t }}</h2>
               @if (x.dossier.requestNature === 'AMENDMENT') { <span class="chip warn">{{ 'Valeurs modifiées surlignées' | t }}</span> }</div>
             <nx-formulaire [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature" [typeDemande]="x.dossier.requestType"
-              [lectureSeule]="!x.canEdit" [sectionsMasquees]="x.canEdit ? ['INSTRUCTION'] : []" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)" />
+              [lectureSeule]="!x.canEdit" [sectionsMasquees]="x.canEdit ? ['INSTRUCTION'] : []" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)"
+              [ongletsSup]="[{ code: 'PIECES', labelFr: 'Pièces jointes', labelEn: 'Attachments', badge: piecesManquantes(), modele: tplPieces },
+                { code: 'LIVRABLES', labelFr: 'Livrables', labelEn: 'Deliverables', badge: 0, modele: tplLivrables }]" />
             @if (x.canEdit && !brouillon()) {
               <div class="row"><button class="btn" (click)="sauver()" [disabled]="occupe()"><nx-icon name="save" /> {{ 'Enregistrer les compléments' | t }}</button></div>
             }
           </div>
 
-          <div class="card pad">
-            <div class="card-title"><nx-icon name="archive" /><h2>{{ 'Pièces jointes' | t }}</h2></div>
-            <table class="datagrid">
-              <thead><tr><th>{{ 'Pièce' | t }}</th><th>{{ 'Fichier' | t }}</th><th></th></tr></thead>
-              <tbody>
-                @for (p of piecesAttendues(); track p.code) {
-                  <tr [class.manque]="!piece(p.code) && p.mandatory">
-                    <td><span class="code-tag">{{ p.code }}</span> {{ p.labelFr | lib: p.labelEn }}
-                      @if (p.mandatory) { <span class="req">*</span> } @else if (p.conditionText) { <span class="muted small">({{ 'conditionnelle' | t }})</span> }
-                      @if (p.observation) { <div class="muted small">{{ p.observation }}</div> }</td>
-                    <td class="small">
-                      @if (piece(p.code); as f) {
-                        <a [href]="auth.lien(api.urlPiece(x.dossier.id, f.id))" target="_blank" rel="noopener">{{ f.fileName }}</a>
-                        <div class="muted">{{ f.sizeBytes / 1024 | num }} Ko · {{ origine(f.source) | t }}</div>
-                      } @else { <span class="muted">—</span> }
-                    </td>
-                    <td class="actions">
-                      @if (x.canEdit) {
-                        <label class="btn sm"><nx-icon name="upload" [size]="15" /> {{ (piece(p.code) ? 'Remplacer' : 'Joindre') | t }}
-                          <input type="file" hidden (change)="joindre(p.code, $any($event.target))" /></label>
-                        @if (piece(p.code); as f) { <button class="btn icon ghost sm danger" (click)="retirerPiece(f.id)" [attr.aria-label]="'Retirer' | t"><nx-icon name="trash" [size]="15" /></button> }
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
         </div>
 
         @if (cote()) {
@@ -128,23 +102,6 @@ import { MessageDrawer } from './message-drawer';
                     @if (a.dueAt) { <div class="muted small">{{ 'À régler avant le {0}' | t: (a.dueAt | date: 'dd/MM/yyyy') }}</div> }
                     @if (estDeposant()) { <button class="btn primary" (click)="paiement.set(a)"><nx-icon name="money" /> {{ 'Payer en ligne' | t }}</button> }
                   }
-                </div>
-              }
-            </div>
-          }
-
-          @if (x.documents.length) {
-            <div class="card pad stack">
-              <div class="card-title"><nx-icon name="shield" /><h2>{{ 'Livrables' | t }}</h2></div>
-              @for (doc of x.documents; track doc.id) {
-                <div class="avis">
-                  <div class="between"><b class="mono">{{ doc.docNo }}</b><span class="chip" [class.ok]="doc.status === 'ACTIVE'">{{ doc.status }}</span></div>
-                  <div class="small">{{ 'Valable du {0} au {1}' | t: (doc.validFrom | date: 'dd/MM/yyyy') : (doc.validUntil | date: 'dd/MM/yyyy') }}</div>
-                  <div class="muted small">{{ 'Signé par {0} le {1}' | t: (doc.signerName ?? doc.signedBy) : (doc.signedAt | date: 'dd/MM/yyyy HH:mm') }}</div>
-                  <div class="row">
-                    <a class="btn sm" [href]="auth.lien(api.urlPdf(doc.docNo))" target="_blank" rel="noopener"><nx-icon name="file" [size]="15" /> PDF</a>
-                    <a class="btn sm ghost" [routerLink]="['/verifier', doc.docNo]"><nx-icon name="qr" [size]="15" /> {{ 'Vérifier' | t }}</a>
-                  </div>
                 </div>
               }
             </div>
@@ -182,6 +139,53 @@ import { MessageDrawer } from './message-drawer';
         </div>
         }
       </div>
+
+      <!-- Onglets « Pièces jointes » et « Livrables », en dernier dans le formulaire -->
+      <ng-template #tplPieces>
+            <p class="muted small">{{ 'Pièces exigées par la procédure pour ce type de demande ; * obligatoire.' | t }}</p>
+            <div class="scroll-x">
+            <table class="datagrid">
+              <thead><tr><th>{{ 'Pièce' | t }}</th><th>{{ 'Fichier' | t }}</th><th></th></tr></thead>
+              <tbody>
+                @for (p of piecesAttendues(); track p.code) {
+                  <tr [class.manque]="!piece(p.code) && p.mandatory">
+                    <td><span class="code-tag">{{ p.code }}</span> {{ p.labelFr | lib: p.labelEn }}
+                      @if (p.mandatory) { <span class="req">*</span> } @else if (p.conditionText) { <span class="muted small">({{ 'conditionnelle' | t }})</span> }
+                      @if (p.observation) { <div class="muted small">{{ p.observation }}</div> }</td>
+                    <td class="small">
+                      @if (piece(p.code); as f) {
+                        <a [href]="auth.lien(api.urlPiece(x.dossier.id, f.id))" target="_blank" rel="noopener">{{ f.fileName }}</a>
+                        <div class="muted">{{ f.sizeBytes / 1024 | num }} Ko · {{ origine(f.source) | t }}</div>
+                      } @else { <span class="muted">—</span> }
+                    </td>
+                    <td class="actions">
+                      @if (x.canEdit) {
+                        <label class="btn sm"><nx-icon name="upload" [size]="15" /> {{ (piece(p.code) ? 'Remplacer' : 'Joindre') | t }}
+                          <input type="file" hidden (change)="joindre(p.code, $any($event.target))" /></label>
+                        @if (piece(p.code); as f) { <button class="btn icon ghost sm danger" (click)="retirerPiece(f.id)" [attr.aria-label]="'Retirer' | t"><nx-icon name="trash" [size]="15" /></button> }
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            </div>
+      </ng-template>
+      <ng-template #tplLivrables>
+        <div class="stack">
+              @for (doc of x.documents; track doc.id) {
+                <div class="avis">
+                  <div class="between"><b class="mono">{{ doc.docNo }}</b><span class="chip" [class.ok]="doc.status === 'ACTIVE'">{{ doc.status }}</span></div>
+                  <div class="small">{{ 'Valable du {0} au {1}' | t: (doc.validFrom | date: 'dd/MM/yyyy') : (doc.validUntil | date: 'dd/MM/yyyy') }}</div>
+                  <div class="muted small">{{ 'Signé par {0} le {1}' | t: (doc.signerName ?? doc.signedBy) : (doc.signedAt | date: 'dd/MM/yyyy HH:mm') }}</div>
+                  <div class="row">
+                    <a class="btn sm" [href]="auth.lien(api.urlPdf(doc.docNo))" target="_blank" rel="noopener"><nx-icon name="file" [size]="15" /> PDF</a>
+                    <a class="btn sm ghost" [routerLink]="['/verifier', doc.docNo]"><nx-icon name="qr" [size]="15" /> {{ 'Vérifier' | t }}</a>
+                  </div>
+                </div>
+              } @empty { <div class="empty small">{{ 'Aucun livrable délivré pour ce dossier : il apparaîtra ici après la signature.' | t }}</div> }
+        </div>
+      </ng-template>
     } @else if (!erreur()) { <div class="skeleton" style="height: 240px"></div> }
 
     @if (confirmation(); as b) {
@@ -299,6 +303,8 @@ export class DossierPage {
     if (!x) return [];
     return x.form.documents.filter(p => !p.requestTypes?.length || p.requestTypes.includes(x.dossier.requestType));
   });
+  /** Pièces obligatoires non jointes : pastille de l'onglet « Pièces jointes ». */
+  protected readonly piecesManquantes = computed(() => this.piecesAttendues().filter(p => p.mandatory && !this.piece(p.code)).length);
   protected readonly erreurListe = computed(() => (this.erreur() ?? '').split('\n').filter(Boolean));
   protected readonly retour = computed(() => this.estDeposant() ? '/demandes' : this.auth.a('eservices.traiter') || this.auth.a('eservices.signer') ? '/taches' : '/supervision/dossiers');
 

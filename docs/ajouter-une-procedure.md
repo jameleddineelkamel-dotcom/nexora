@@ -51,13 +51,19 @@ Renseignez le **code** (majuscules, ex. `CERT_ORIGINE`), le **code CUR** à 3 le
 |---|---|---|
 | **Général** | réglages d'exécution (pays, monnaie, fuseau, délai de paiement `P30D`, délai de traitement en heures, champs pivots, en-têtes et mention du livrable), **types de demande** (un code CUR par déclinaison, natures autorisées `INITIAL`, `RENEWAL`, `AMENDMENT`…), **acteurs**, **statuts** | Document Agent : acteurs et délai lus dans la SFD |
 | **Formulaire et données** | **gabarit d'IHM** ([guide](personnaliser-le-formulaire.md) ; disposition continue, en onglets ou en étapes, sous-sections en blocs ou en accordéons ; 1 à 4 colonnes ; densité ; libellés au-dessus ou à gauche ; modèles prédéfinis, import / export JSON), **sections et sous-sections** (colonne « Section parente », un niveau ; groupes répétitifs, ex. produits), champs : type, longueur, format, obligation, liste (`REF_xxx` du Référentiel Commun, `@LIEUX_TRAITEMENT`, ou valeurs locales `code=FR\|EN`), références UNTDED / OMD / UN/CCL, **chemin BIE SCRDM**, critère de recherche, pré-remplissage depuis le registre, modifiable en amendement | Data Agent : chemin SCRDM D23B de chaque champ (rôle de partie reconnu dans le libellé : « Nom de l'expéditeur » → `specifiedConsignment/consignor/name`), référence UNTDED 2005, liste du Référentiel Commun ; cas « plusieurs / aucune correspondance » du RDM Guideline ; assistant SCRDM intégré |
-| **Messages et flux** | catalogue des messages (type, format **JSON, XML, CSV ou TXT**, élément racine, champs et chemins, champs indexés) ; flux = usage ordonné des messages entre acteurs | — |
+| **Messages et flux** | catalogue des messages (type, format **JSON, XML, CSV, TXT, EDIFACT ou PDF**, élément racine, champs et chemins, champs indexés) ; flux = usage ordonné des messages entre acteurs, avec pour chaque message un **format de l'échange** facultatif (vide : format du message ; sinon format propre à ce flux, ex. un contrat JSON transmis en EDIFACT à la douane) | — |
 | **Workflow BPMN** | ajuster le processus généré dans l'éditeur bpmn-js, ou l'exporter vers **Camunda Modeler**, le modifier, le réimporter | Single Window Agent (Process Design) : génère le BPMN et propose les statuts manquants |
 | **Règles DRL** | édition des règles de validation métier (agenda-group `validation`) et de frais (agenda-group `frais`, généré), **Compiler** (diagnostics Drools, règles déclarées), banc d'essai, **approbation** par un approbateur autre que le dernier auteur des règles (valable tant que le DRL ne change pas) | Rules Agent : régénère frais et pièces conditionnelles, signale les règles de gestion sans règle DRL |
 | **Frais** | frais par bénéficiaire et par type / nature | Document Agent : tableau « délais et coûts » de la SFD |
-| **Pièces jointes** | pièces P1…Pn (obligatoires, ou conditionnelles : `champ == 'valeur'`), livrables (code document, validité `FIN_ANNEE` / `UN_AN` / `AUCUNE`, champs imprimés) | Document Agent : tableau « composition du dossier » de la SFD |
 | **Agents IA** | joindre la SFD (.docx ou .txt) **et ses diagrammes** (.drawio, .bpmn — sélection multiple), lancer l'orchestrateur, **revoir chaque proposition** (accepter, corriger, rejeter avec motif) | AI Orchestrator : Document → Data → Rules → Process → Compliance |
 | **Contrôles et publication** | lever les erreurs du Compliance Agent, soumettre, faire approuver, publier | Compliance Agent |
+| **Pièces jointes** | pièces P1…Pn (obligatoires, ou conditionnelles : `champ == 'valeur'`) | Document Agent : tableau « composition du dossier » de la SFD |
+| **Livrables** | documents délivrés : code document, validité `FIN_ANNEE` / `UN_AN` / `AUCUNE`, titre, champs imprimés, mention de signature | — |
+
+Les onglets **Pièces jointes** et **Livrables** sont en dernier, dans le studio comme dans e-Services : dans le dossier
+du demandeur, ils suivent les onglets (ou étapes, ou sections) du formulaire ; l'onglet des pièces affiche le nombre de
+pièces obligatoires manquantes. Les fichiers sont rangés dans MinIO lorsqu'il est configuré
+([stockage des fichiers](stockage-des-fichiers.md)).
 
 Rien n'est appliqué sans revue humaine : les agents sont plafonnés au niveau L2 (proposer) ; soumettre, approuver et
 publier sont réservés à l'humain, et une telle demande faite aux agents est refusée et journalisée (AC-AG-01).

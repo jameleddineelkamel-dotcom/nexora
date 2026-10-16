@@ -131,4 +131,7 @@ export const EN: Record<string, string> = {
   "Accès refusé : votre profil n'a pas le droit requis pour cette action.": "Access denied: your profile lacks the required right for this action.",
   "Session expirée : reconnectez-vous.": "Session expired: sign in again.",
   "Précédent": "Previous", "Suivant": "Next", "Étape {0} sur {1}": "Step {0} of {1}",
+  "Formulaire, pièces et livrables": "Form, attachments and deliverables",
+  "Pièces exigées par la procédure pour ce type de demande ; * obligatoire.": "Documents required by the procedure for this request type; * mandatory.",
+  "Aucun livrable délivré pour ce dossier : il apparaîtra ici après la signature.": "No deliverable issued for this case yet: it will appear here once signed.",
 };

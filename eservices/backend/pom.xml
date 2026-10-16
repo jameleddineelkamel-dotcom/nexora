@@ -92,6 +92,18 @@
 			<artifactId>openpdf</artifactId>
 			<version>${openpdf.version}</version>
 		</dependency>
+		<!-- Stockage objet MinIO (API S3) des pièces jointes et des livrables -->
+		<dependency>
+			<groupId>io.minio</groupId>
+			<artifactId>minio</artifactId>
+			<version>8.6.0</version>
+		</dependency>
+		<!-- OkHttp 5 (client HTTP de MinIO) : classes publiées dans l'artefact « -jvm », que Maven ne résout pas seul -->
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp-jvm</artifactId>
+			<version>5.1.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>core</artifactId>
