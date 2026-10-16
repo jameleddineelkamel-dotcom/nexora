@@ -35,6 +35,7 @@ flowchart LR
 
 - **Ajouter une procédure** se fait sans code, dans le studio : [docs/ajouter-une-procedure.md](docs/ajouter-une-procedure.md).
 - **Cas d'application FIMEX** (SFD e-GUCE 3G v1.4, DM FIMEX v1.1) : [docs/fimex.md](docs/fimex.md).
+- **Cas d'application VTP** (Visa Technique Provisoire MINSANTE, circuit Transaction) : [docs/vtp.md](docs/vtp.md).
 
 ## Mise en route (développement)
 
