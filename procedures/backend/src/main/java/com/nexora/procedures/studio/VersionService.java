@@ -2,6 +2,8 @@ package com.nexora.procedures.studio;
 
 import com.nexora.procedures.agents.Conformite;
 import com.nexora.procedures.audit.Journal;
+import com.nexora.procedures.security.Habilitations;
+import com.nexora.procedures.security.SecurityConfig;
 import com.nexora.procedures.studio.Modele.*;
 import com.nexora.procedures.web.Json;
 import com.nexora.procedures.web.ProceduresException;
@@ -122,7 +124,7 @@ public class VersionService {
         Version v = brouillon(id);
         String auteur = Journal.utilisateur();
         switch (partie) {
-            case "settings" -> repo.parametres(id, json.mapper().convertValue(corps, Parametres.class), auteur);
+            case "settings" -> repo.parametres(id, rendu(v, json.mapper().convertValue(corps, Parametres.class)), auteur);
             case "requestTypes" -> repo.typesDemande(id, liste(corps, RequestType.class));
             case "actors" -> repo.acteurs(id, liste(corps, Actor.class));
             case "statuses" -> repo.statuts(id, liste(corps, CaseStatus.class));
@@ -165,6 +167,20 @@ public class VersionService {
         if (retenus.isEmpty()) ihm.remove("champs"); else ihm.put("champs", retenus);
         if (ihm.isEmpty()) s.remove("ihm"); else s.put("ihm", ihm);
         return s;
+    }
+
+    /**
+     * Réglage « rendu » du formulaire dans e-Services : DYNAMIQUE (défaut, interprété à l'exécution) ou GENERE (code
+     * Angular généré par le studio et compilé dans e-Services). Seul un administrateur de la plateforme peut le changer.
+     */
+    static Parametres rendu(Version v, Parametres p) {
+        Map<String, Object> s = p.settings() == null ? Map.of() : p.settings();
+        Object nouveau = s.get("rendu");
+        if (nouveau != null && !List.of("DYNAMIQUE", "GENERE").contains(nouveau))
+            throw ProceduresException.invalide("Rendu du formulaire inconnu : " + nouveau + " (attendu : DYNAMIQUE ou GENERE).");
+        if (!GenerateurAngular.rendu(v.settings()).equals(GenerateurAngular.rendu(s)) && !Habilitations.a(SecurityConfig.ADMINISTRER))
+            throw ProceduresException.interdit("Seul un administrateur de la plateforme peut choisir le rendu du formulaire (dynamique ou code Angular généré).");
+        return p;
     }
 
     /** Catalogue de messages : chaque message déclare un format de contenu connu ({@link Modele#FORMATS}). */

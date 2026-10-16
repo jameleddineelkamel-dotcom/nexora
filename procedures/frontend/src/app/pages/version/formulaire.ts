@@ -7,6 +7,7 @@ import { Icon } from '../../shared/icon';
 import { Enregistrement } from './general';
 import { GabaritIhmComponent } from './ihm';
 import { Constructeur } from './constructeur';
+import { RenduFormulaire } from './rendu';
 
 const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 'EMAIL', 'PHONE', 'BOOLEAN', 'GEOLOCATION'];
 
@@ -17,9 +18,10 @@ const TYPES = ['TEXT', 'LONGTEXT', 'NUMBER', 'DECIMAL', 'DATE', 'YEAR', 'CODE', 
  */
 @Component({
   selector: 'nx-onglet-formulaire',
-  imports: [Icon, Grille, GabaritIhmComponent, Constructeur, ...I18N],
+  imports: [Icon, Grille, GabaritIhmComponent, Constructeur, RenduFormulaire, ...I18N],
   template: `
     <nx-gabarit-ihm [v]="v()" [modifiable]="modifiable()" (enregistrer)="enregistrer.emit($event)" />
+    <nx-rendu-formulaire [v]="v()" [modifiable]="modifiable()" (enregistrer)="enregistrer.emit($event)" />
     <div class="vues" role="tablist">
       <button type="button" role="tab" class="vue" [class.on]="vue() === 'constructeur'" [attr.aria-selected]="vue() === 'constructeur'" (click)="changerVue('constructeur')">
         <nx-icon name="template" [size]="15" /> {{ 'Constructeur visuel' | t }}</button>

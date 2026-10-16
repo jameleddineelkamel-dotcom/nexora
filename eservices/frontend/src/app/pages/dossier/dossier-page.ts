@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { I18N, I18n } from '../../core/i18n';
 import { enregistrer, erreurs } from '../../core/session';
 import { FormulaireDynamique } from '../../shared/formulaire';
+import { FormulaireProcedure } from '../../shared/formulaire-procedure';
 import { Icon } from '../../shared/icon';
 import { NATURES, Statut } from '../../shared/widgets';
 import { MessageDrawer } from './message-drawer';
@@ -16,7 +17,7 @@ import { MessageDrawer } from './message-drawer';
  */
 @Component({
   selector: 'nx-dossier',
-  imports: [RouterLink, DatePipe, Icon, Statut, FormulaireDynamique, MessageDrawer, ...I18N],
+  imports: [RouterLink, DatePipe, Icon, Statut, FormulaireDynamique, FormulaireProcedure, MessageDrawer, ...I18N],
   template: `
     @if (erreur()) { <div class="alert err"><nx-icon name="alert" /> <div>@for (e of erreurListe(); track e) { <div>{{ e | t }}</div> }</div></div> }
     @if (info()) { <div class="alert ok"><nx-icon name="check" /> {{ info()! | t }}</div> }
@@ -73,7 +74,7 @@ import { MessageDrawer } from './message-drawer';
           <div class="card pad">
             <div class="card-title"><nx-icon name="file" /><h2>{{ 'Formulaire, pièces et livrables' | t }}</h2>
               @if (x.dossier.requestNature === 'AMENDMENT') { <span class="chip warn">{{ 'Valeurs modifiées surlignées' | t }}</span> }</div>
-            <nx-formulaire [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature" [typeDemande]="x.dossier.requestType"
+            <nx-formulaire-procedure [form]="x.form" [donnees]="donnees()" [precedent]="x.dossier.previousData" [nature]="x.dossier.requestNature" [typeDemande]="x.dossier.requestType"
               [lectureSeule]="!x.canEdit" [sectionsMasquees]="x.canEdit ? ['INSTRUCTION'] : []" [erreurs]="bilan()?.erreurs ?? []" (modification)="donnees.set($event); modifie.set(true)"
               [ongletsSup]="[{ code: 'PIECES', labelFr: 'Pièces jointes', labelEn: 'Attachments', badge: piecesManquantes(), modele: tplPieces },
                 { code: 'LIVRABLES', labelFr: 'Livrables', labelEn: 'Deliverables', badge: 0, modele: tplLivrables }]" />

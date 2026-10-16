@@ -91,7 +91,9 @@ public class DossierController {
         m.put("deliverables", p.deliverables());
         Map<String, Object> reglages = new LinkedHashMap<>(Map.of("processingLocationField", p.reglage("processingLocationField", ""),
                 "applicantField", p.reglage("applicantField", ""), "previousField", p.reglage("previousField", ""),
-                "renewalYearField", p.reglage("renewalYearField", ""), "currency", p.reglage("currency", "XAF")));
+                "renewalYearField", p.reglage("renewalYearField", ""), "currency", p.reglage("currency", "XAF"),
+                // Rendu choisi dans le studio : DYNAMIQUE ou GENERE (composant Angular compilé dans e-Services, sinon repli dynamique)
+                "rendu", "GENERE".equals(p.reglage("rendu", "")) ? "GENERE" : "DYNAMIQUE"));
         // Gabarit d'IHM conçu dans le studio (disposition, colonnes, densité…) : transmis tel quel au formulaire
         if (p.settings() != null && p.settings().get("ihm") instanceof Map<?, ?> ihm) reglages.put("ihm", ihm);
         m.put("settings", reglages);

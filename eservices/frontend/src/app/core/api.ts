@@ -17,11 +17,19 @@ export interface Field {
 export interface RequiredDocument { code: string; labelFr: string; labelEn: string | null; mandatory: boolean; conditionText: string | null; requestTypes: string[]; observation: string | null; }
 export interface CaseStatus { code: string; labelFr: string; labelEn: string | null; isFinal: boolean; tone: 'neutral' | 'info' | 'warn' | 'ok' | 'danger'; }
 export interface Lieu { code: string; labelFr: string; labelEn: string | null; unitCode: string; unitLabel: string; sortOrder: number; active: boolean; agents: number; signataires: number; }
+/** Formulaires en code Angular généré : dossier des sources, rendu demandé et présence du code par version déployée. */
+export interface EtatFormulairesGeneres {
+  directory: string; directoryExists: boolean;
+  deployments: { procedure: string; versionNo: number; labelFr: string; active: boolean; rendu: 'DYNAMIQUE' | 'GENERE'; inSources: boolean }[];
+  written?: string[]; next?: string;
+}
 export interface Formulaire {
   procedure: { code: string; labelFr: string; labelEn: string | null; authority: string; description: string };
   versionNo: number; requestTypes: RequestType[]; natures: Nature[]; sections: Section[]; fields: Field[]; documents: RequiredDocument[];
   statuses: CaseStatus[]; deliverables: { code: string; labelFr: string }[];
-  settings: { processingLocationField: string; applicantField: string; previousField: string; renewalYearField: string; currency: string; ihm?: Record<string, unknown> };
+  settings: { processingLocationField: string; applicantField: string; previousField: string; renewalYearField: string; currency: string; ihm?: Record<string, unknown>;
+    /** Rendu du formulaire choisi dans le studio : DYNAMIQUE (défaut) ou GENERE (code Angular généré, s'il est compilé dans e-Services). */
+    rendu?: 'DYNAMIQUE' | 'GENERE' };
   locations: Lieu[];
 }
 export interface Procedure {
@@ -145,6 +153,8 @@ export class Api {
 
   // administration
   publiees(): Observable<Publiee[]> { return this.http.get<Publiee[]>(`${this.v1}/admin/published`); }
+  formulairesGeneres(): Observable<EtatFormulairesGeneres> { return this.http.get<EtatFormulairesGeneres>(`${this.v1}/admin/generated-forms`); }
+  preparerFormulairesGeneres(): Observable<EtatFormulairesGeneres> { return this.http.post<EtatFormulairesGeneres>(`${this.v1}/admin/generated-forms`, {}); }
   deploiements(): Observable<Deploiement[]> { return this.http.get<Deploiement[]>(`${this.v1}/admin/deployments`); }
   deployer(code: string, m = ''): Observable<Deploiement> { return this.http.post<Deploiement>(`${this.v1}/admin/deployments`, { code }, { headers: motif(m) }); }
   listes(): Observable<{ table: string; entries: number; loadedAt: string; loadedBy: string }[]> { return this.http.get<never>(`${this.v1}/admin/code-lists`); }

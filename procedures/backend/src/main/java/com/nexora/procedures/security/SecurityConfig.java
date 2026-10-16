@@ -22,7 +22,9 @@ import java.util.List;
 public class SecurityConfig {
 
     public static final String LIRE = "PERM_procedures.lire", MODELISER = "PERM_procedures.modeliser",
-            APPROUVER = "PERM_procedures.approuver", PUBLIER = "PERM_procedures.publier";
+            APPROUVER = "PERM_procedures.approuver", PUBLIER = "PERM_procedures.publier",
+            /** Administration de la plateforme : seule à pouvoir choisir le rendu du formulaire (dynamique ou code généré). */
+            ADMINISTRER = "PERM_auth.administration";
 
     @Bean
     SecurityFilterChain securite(HttpSecurity http) throws Exception {

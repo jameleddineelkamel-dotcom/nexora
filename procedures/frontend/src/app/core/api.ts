@@ -60,6 +60,8 @@ export interface VersionComplete {
   version: Version; procedure: Procedure; requestTypes: RequestType[]; actors: Actor[]; statuses: CaseStatus[]; sections: Section[]; fields: Field[];
   documents: RequiredDocument[]; fees: FeeItem[]; messages: MessageDef[]; flows: Flow[]; process: ProcessModel | null; rules: RuleSet | null; deliverables: Deliverable[];
 }
+/** Code Angular généré pour une version : composant, sélecteur et fichiers (.ts, .html) à placer dans e-Services. */
+export interface CodeAngular { format: number; procedure: string; versionNo: number; rendu: 'DYNAMIQUE' | 'GENERE'; component: string; selector: string; files: { path: string; content: string }[]; }
 export interface Constat { severity: 'error' | 'warning' | 'info'; rule: string; target: string; message: string; }
 export interface Terme { code: string; labelFr: string; labelEn: string | null; sortOrder: number; processCode?: string; phaseCode?: string; bspArea?: string; sharedRequirements?: string; description?: string; }
 export interface Terminologie { processes: Terme[]; phases: Terme[]; circuits: Terme[]; natures: Terme[]; }
@@ -105,6 +107,8 @@ export class Api {
   cycle(id: number, action: 'submit' | 'approve' | 'reject' | 'publish' | 'retire', comment = ''): Observable<VersionComplete> {
     return this.http.post<VersionComplete>(`${this.v1}/versions/${id}/${action}`, action === 'reject' ? { comment } : {}, { headers: motif(comment) });
   }
+  /** Formulaire de la version en code Angular (composant pour e-Services). */
+  codeAngular(id: number): Observable<CodeAngular> { return this.http.get<CodeAngular>(`${this.v1}/versions/${id}/angular`); }
   paquet(id: number): Observable<string> { return this.http.get(`${this.v1}/versions/${id}/package`, { responseType: 'text' }); }
   urlBpmn(id: number): string { return `${this.v1}/versions/${id}/bpmn`; }
   urlDrl(id: number): string { return `${this.v1}/versions/${id}/drl`; }

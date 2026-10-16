@@ -65,6 +65,18 @@ public class Services {
         }
     }
 
+    /** Code Angular généré par le studio pour une version publiée en rendu GENERE : { format, component, files: [{ path, content }] }. */
+    public Map<String, Object> codeAngular(String code, int versionNo) {
+        try {
+            String r = procedures.get().uri("/api/v1/angular/{c}/{n}", code, versionNo).header(HttpHeaders.AUTHORIZATION, bearer()).retrieve().body(String.class);
+            return json.mapper().readValue(r, new TypeReference<>() {});
+        } catch (HttpClientErrorException e) {
+            throw EservicesException.invalide("Code Angular de " + code + " v" + versionNo + " indisponible dans le studio : " + e.getResponseBodyAsString());
+        } catch (RestClientException e) {
+            throw EservicesException.indisponible("Le studio des procédures ne répond pas : " + e.getMessage());
+        }
+    }
+
     /** Paquet publié et son empreinte annoncée par le studio. */
     public Map.Entry<String, String> paquetPublie(String code) {
         try {

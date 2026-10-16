@@ -203,3 +203,9 @@ l'enregistrement du gabarit les conserve.
 2. Lancez la revue (onglet *Agents IA*) : le Compliance Agent contrôle les sous-sections (un seul niveau, parent connu).
 3. Après publication, ouvrez une nouvelle demande dans e-Services : les onglets et accordéons suivent l'ordre et les
    libellés de la grille.
+
+## 7. Rendu dynamique ou code Angular généré
+
+Ces réglages valent pour les deux rendus du formulaire dans e-Services. Par défaut, le formulaire est construit à
+l'exécution (rendu dynamique) ; un administrateur peut demander pour une procédure un vrai composant Angular généré par
+le studio et compilé dans e-Services : voir [Formulaire en code Angular généré](formulaire-en-code-angular.md).

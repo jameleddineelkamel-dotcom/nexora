@@ -1,13 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Api, Deploiement, Incident, Lieu, Membre, Message, Publiee, Unite } from '../core/api';
+import { Api, Deploiement, EtatFormulairesGeneres, Incident, Lieu, Membre, Message, Publiee, Unite } from '../core/api';
+import { FORMULAIRES_GENERES } from '../formulaires-generes';
 import { AuthService } from '../core/auth.service';
 import { I18N, I18n } from '../core/i18n';
 import { erreurs } from '../core/session';
 import { Icon } from '../shared/icon';
 import { MessageDrawer } from './dossier/message-drawer';
 
-type Onglet = 'procedures' | 'cotation' | 'listes' | 'incidents' | 'vues' | 'reception';
+type Onglet = 'procedures' | 'generes' | 'cotation' | 'listes' | 'incidents' | 'vues' | 'reception';
 
 const EXEMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <PaymentConfirmation>
@@ -59,6 +60,31 @@ const EXEMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
               <tr><td>{{ d.labelFr }}</td><td>v{{ d.versionNo }}</td><td class="mono small">{{ d.processDefinitionId }}</td>
                 <td class="small">{{ d.deployedAt | date: 'dd/MM/yyyy HH:mm' }} · {{ d.deployedBy }}</td><td><span class="chip" [class.ok]="d.active">{{ (d.active ? 'active' : 'remplacée') | t }}</span></td></tr>
             }</tbody></table></div>
+        </div>
+      }
+      @case ('generes') {
+        <div class="card pad stack">
+          <div class="card-title"><nx-icon name="code" /><h2>{{ 'Formulaires en code Angular généré' | t }}</h2></div>
+          <p class="muted small">{{ 'Une procédure dont le rendu est « code généré » (choix d\\'un administrateur dans le studio) est servie par un composant Angular compilé dans e-Services. « Préparer le code généré » récupère ce code auprès du studio et l\\'écrit dans les sources ; reconstruisez puis redéployez ensuite e-Services. Tant que le composant d\\'une version n\\'est pas compilé, le rendu dynamique est utilisé.' | t }}</p>
+          @if (generes(); as g) {
+            <div class="small">{{ 'Dossier des sources' | t }} : <span class="mono">{{ g.directory }}</span>
+              @if (!g.directoryExists) { <span class="chip danger">{{ 'introuvable sur ce serveur' | t }}</span> }</div>
+            <table class="datagrid">
+              <thead><tr><th>{{ 'Procédure' | t }}</th><th>{{ 'Version' | t }}</th><th>{{ 'Rendu demandé' | t }}</th><th>{{ 'Code dans les sources' | t }}</th><th>{{ 'Compilé dans cette version d\\'e-Services' | t }}</th></tr></thead>
+              <tbody>
+                @for (d of g.deployments; track d.procedure + d.versionNo) {
+                  <tr>
+                    <td><span class="code-tag">{{ d.procedure }}</span> {{ d.labelFr }} @if (d.active) { <span class="chip ok">{{ 'active' | t }}</span> }</td>
+                    <td>v{{ d.versionNo }}</td>
+                    <td><span class="chip" [class.info]="d.rendu === 'GENERE'">{{ (d.rendu === 'GENERE' ? 'Code généré' : 'Dynamique') | t }}</span></td>
+                    <td>{{ (d.inSources ? 'Oui' : 'Non') | t }}</td>
+                    <td>@if (compile(d.procedure, d.versionNo)) { <span class="chip ok">{{ 'Oui' | t }}</span> } @else if (d.rendu === 'GENERE') { <span class="chip warn">{{ 'Non : rendu dynamique' | t }}</span> } @else { — }</td>
+                  </tr>
+                } @empty { <tr><td colspan="5" class="empty small">{{ 'Aucune procédure déployée.' | t }}</td></tr> }
+              </tbody>
+            </table>
+            <div class="row"><button class="btn primary" (click)="preparerGeneres()" [disabled]="occupe() || !g.directoryExists"><nx-icon name="download" /> {{ 'Préparer le code généré' | t }}</button></div>
+          } @else { <div class="skeleton" style="height: 120px"></div> }
         </div>
       }
       @case ('cotation') {
@@ -163,7 +189,8 @@ export class AdministrationPage {
   private readonly i18n = inject(I18n);
   protected readonly auth = inject(AuthService);
   protected readonly onglets: { code: Onglet; libelle: string; icone: string }[] = [
-    { code: 'procedures', libelle: 'Procédures', icone: 'workflow' }, { code: 'cotation', libelle: 'Cotation', icone: 'users' },
+    { code: 'procedures', libelle: 'Procédures', icone: 'workflow' }, { code: 'generes', libelle: 'Formulaires générés', icone: 'code' },
+    { code: 'cotation', libelle: 'Cotation', icone: 'users' },
     { code: 'listes', libelle: 'Listes de codes', icone: 'database' }, { code: 'incidents', libelle: 'Incidents', icone: 'alert' },
     { code: 'vues', libelle: 'Vues métier', icone: 'table' }, { code: 'reception', libelle: 'Réception de messages', icone: 'download' }];
   protected readonly onglet = signal<Onglet>('procedures');
@@ -187,11 +214,25 @@ export class AdministrationPage {
   protected readonly recCorps = signal(EXEMPLE_XML);
   protected readonly message = signal<Message | null>(null);
   protected readonly occupe = signal(false);
+  protected readonly generes = signal<EtatFormulairesGeneres | null>(null);
   protected readonly erreur = signal<string | null>(null);
   protected readonly info = signal<string | null>(null);
 
   constructor() {
     this.chargerProcedures();
+  }
+
+  /** Composant généré compilé dans cette version d'e-Services (registre formulaires-generes). */
+  protected compile(procedure: string, version: number): boolean {
+    return !!FORMULAIRES_GENERES[`${procedure}@${version}`];
+  }
+
+  protected preparerGeneres(): void {
+    this.occupe.set(true);
+    this.api.preparerFormulairesGeneres().subscribe({
+      next: g => { this.occupe.set(false); this.generes.set(g); this.info.set(this.i18n.t('{0} fichier(s) écrit(s). Reconstruisez puis redéployez e-Services pour compiler ces formulaires.', g.written?.length ?? 0)); },
+      error: this.echec,
+    });
   }
 
   private echec = (e: unknown) => { this.occupe.set(false); this.erreur.set(erreurs(e).join(' ')); };
@@ -202,6 +243,7 @@ export class AdministrationPage {
     this.info.set(null);
     if (o === 'procedures') this.chargerProcedures();
     if (o === 'cotation') this.chargerCotation();
+    if (o === 'generes') this.api.formulairesGeneres().subscribe({ next: g => this.generes.set(g), error: this.echec });
     if (o === 'listes') this.api.deploiements().subscribe({ next: d => this.deploiements.set(d) });
     if (o === 'listes') this.api.listes().subscribe({ next: l => this.listes.set(l), error: this.echec });
     if (o === 'incidents') this.api.incidents().subscribe({ next: l => this.incidents.set(l), error: this.echec });

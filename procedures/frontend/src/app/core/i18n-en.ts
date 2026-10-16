@@ -362,6 +362,24 @@ export const EN: Record<string, string> = {
   "Ajouter une ligne": "Add a row",
   "Lieux de traitement": "Processing locations",
   "Localisation (carte)": "Location (map)",
+  // Rendu du formulaire dans e-Services (dynamique ou code Angular généré)
+  "Rendu dans e-Services": "Rendering in e-Services",
+  "Voir le code Angular généré": "View the generated Angular code",
+  "Choix réservé aux administrateurs de la plateforme.": "Choice reserved for platform administrators.",
+  "Le rendu se choisit dans une version brouillon.": "The rendering is chosen in a draft version.",
+  "Après publication et déploiement, un administrateur d'e-Services prépare le code généré puis reconstruit e-Services.":
+    "After publication and deployment, an e-Services administrator prepares the generated code, then rebuilds e-Services.",
+  "Code Angular généré": "Generated Angular code",
+  "format {0}": "format {0}",
+  "Fermer": "Close",
+  "Composant autonome pour e-Services (dossier src/app/formulaires-generes), qui étend FormulaireGenereBase. Il est produit à partir de la version affichée ; e-Services le récupère pour les versions publiées en rendu « code généré ».":
+    "Standalone component for e-Services (folder src/app/formulaires-generes) extending FormulaireGenereBase. It is produced from the displayed version; e-Services fetches it for versions published with “generated code” rendering.",
+  "Télécharger": "Download",
+  "Dynamique (recommandé)": "Dynamic (recommended)",
+  "Formulaire construit à l'exécution à partir du paquet publié : aucune recompilation, chaque version s'affiche telle que publiée.":
+    "Form built at runtime from the published package: no recompilation, each version is displayed as published.",
+  "Composant Angular écrit par le studio pour chaque version publiée, compilé dans e-Services (reconstruction et redéploiement requis) ; repli dynamique tant qu'il n'est pas compilé.":
+    "Angular component written by the studio for each published version, compiled into e-Services (rebuild and redeployment required); dynamic fallback until it is compiled.",
   // Format des messages dans les flux
   "Format de l'échange": "Exchange format",
   "Vide : format du message dans le catalogue ; sinon format propre à cet échange (ex. EDIFACT vers la douane).":

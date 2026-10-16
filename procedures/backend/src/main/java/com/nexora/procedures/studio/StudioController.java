@@ -175,6 +175,40 @@ public class StudioController {
         return repo.paquet(id).orElseGet(() -> json.ecrire(versions.paquet(versions.complete(id), "(aperçu)")));
     }
 
+    /** Formulaire de la version en code Angular (composant pour e-Services), quel que soit le réglage « rendu ». */
+    @GetMapping("/versions/{id}/angular")
+    public Map<String, Object> angular(@PathVariable long id) {
+        return codeAngular(versions.complete(id));
+    }
+
+    /**
+     * Code Angular d'une version donnée d'une procédure, pour l'action « Préparer le code généré » d'e-Services. Refusé
+     * pour une version qui n'est ni publiée ni retirée, ou dont le rendu n'est pas GENERE.
+     */
+    @GetMapping("/angular/{code}/{versionNo}")
+    public Map<String, Object> angularPublie(@PathVariable String code, @PathVariable int versionNo) {
+        Version v = repo.versions(code).stream().filter(x -> x.versionNo() == versionNo).findFirst()
+                .orElseThrow(() -> ProceduresException.introuvable("Version introuvable : " + code + " v" + versionNo + "."));
+        if (!List.of("published", "superseded", "retired").contains(v.lifecycleStatus()))
+            throw ProceduresException.conflit("La version " + code + " v" + versionNo + " n'est pas publiée (statut : " + v.lifecycleStatus() + ").");
+        if (!"GENERE".equals(GenerateurAngular.rendu(v.settings())))
+            throw ProceduresException.conflit("La procédure " + code + " v" + versionNo + " est en rendu dynamique : aucun code Angular à intégrer.");
+        return codeAngular(repo.complete(v.id()));
+    }
+
+    private Map<String, Object> codeAngular(VersionComplete v) {
+        GenerateurAngular.Resultat r = GenerateurAngular.generer(v);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("format", GenerateurAngular.FORMAT);
+        m.put("procedure", r.procedure());
+        m.put("versionNo", r.versionNo());
+        m.put("rendu", GenerateurAngular.rendu(v.version().settings()));
+        m.put("component", r.composant());
+        m.put("selector", r.selecteur());
+        m.put("files", r.fichiers().stream().map(f -> Map.of("path", f.chemin(), "content", f.contenu())).toList());
+        return m;
+    }
+
     /** Export du BPMN pour Camunda Modeler. */
     @GetMapping(value = "/versions/{id}/bpmn", produces = "application/xml")
     public ResponseEntity<String> bpmn(@PathVariable long id) {

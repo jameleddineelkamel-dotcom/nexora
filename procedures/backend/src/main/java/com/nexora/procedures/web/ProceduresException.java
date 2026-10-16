@@ -28,6 +28,10 @@ public class ProceduresException extends RuntimeException {
         return invalide(List.of(message));
     }
 
+    public static ProceduresException interdit(String message) {
+        return new ProceduresException(HttpStatus.FORBIDDEN, List.of(message));
+    }
+
     public static ProceduresException conflit(String message) {
         return new ProceduresException(HttpStatus.CONFLICT, List.of(message));
     }
