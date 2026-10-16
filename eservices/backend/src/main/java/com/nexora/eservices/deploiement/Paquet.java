@@ -44,8 +44,9 @@ public record Paquet(String format, ProcedureInfo procedure, Map<String, Object>
     public record MessageDef(String code, String labelFr, String labelEn, String messageType, String contentFormat, String rootElement,
                              String standardRef, String schemaText, String sensitivity, String description, List<MessageField> fields) {}
 
+    /** Usage d'un message dans un flux ; {@code contentFormat} vide : format du contrat du message. */
     public record FlowMessage(int seq, String messageCode, String senderActor, String receiverActor, String interactionPattern,
-                              Integer responseToSeq, Integer timeoutHours) {}
+                              Integer responseToSeq, Integer timeoutHours, String contentFormat) {}
 
     public record Flow(String code, String labelFr, String labelEn, int sortOrder, List<FlowMessage> messages) {}
 
@@ -57,7 +58,16 @@ public record Paquet(String format, ProcedureInfo procedure, Map<String, Object>
                               List<String> bodyFields, String signatureNote) {}
 
     /** Usage d'un message dans un flux : flux, rang, émetteur et destinataire (RG-TRX-02). */
-    public record Usage(Flow flow, FlowMessage message) {}
+    public record Usage(Flow flow, FlowMessage message) {
+
+        /** Contrat au format effectif de l'échange : celui du flux s'il est renseigné, sinon celui du message. */
+        public MessageDef contrat(MessageDef def) {
+            String f = message.contentFormat();
+            if (f == null || f.isBlank() || f.equals(def.contentFormat())) return def;
+            return new MessageDef(def.code(), def.labelFr(), def.labelEn(), def.messageType(), f, def.rootElement(), def.standardRef(),
+                    def.schemaText(), def.sensitivity(), def.description(), def.fields());
+        }
+    }
 
     public Optional<Field> champ(String code) {
         return fields.stream().filter(f -> f.code().equals(code)).findFirst();

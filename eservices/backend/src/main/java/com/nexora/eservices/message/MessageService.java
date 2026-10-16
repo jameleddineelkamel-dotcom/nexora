@@ -72,8 +72,9 @@ public class MessageService {
     }
 
     private UUID emettre(Paquet p, Dossier d, String code, Map<String, Object> contexte, String observation, UUID refTo, List<Long> pieces) {
-        Paquet.MessageDef def = p.message(code).orElseThrow(() -> new IllegalStateException("Message absent du catalogue publié : " + code));
         Paquet.Usage usage = p.usage(code).orElseThrow(() -> new IllegalStateException("Message utilisé par aucun flux (RG-TRX-02) : " + code));
+        // Format de l'échange : celui du flux s'il le précise, sinon celui du contrat
+        Paquet.MessageDef def = usage.contrat(p.message(code).orElseThrow(() -> new IllegalStateException("Message absent du catalogue publié : " + code)));
         Map<String, List<String>> valeurs = valeurs(p, def, d, contexte);
         Map<String, String> libelles = new LinkedHashMap<>();
         libelles.put("CUR", d == null ? "" : Objects.toString(d.dossierNo(), ""));
@@ -150,8 +151,8 @@ public class MessageService {
             if (x.message(code).isPresent()) { p = x; break; }
         }
         if (p == null) throw EservicesException.introuvable("Message inconnu de toutes les procédures déployées : " + code);
-        Paquet.MessageDef def = p.message(code).orElseThrow();
         Paquet.Usage usage = p.usage(code).orElseThrow(() -> EservicesException.invalide("Message utilisé par aucun flux : " + code));
+        Paquet.MessageDef def = usage.contrat(p.message(code).orElseThrow());
         Map<String, List<String>> valeurs;
         List<String> erreurs = new ArrayList<>();
         try {

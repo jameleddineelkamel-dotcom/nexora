@@ -5,6 +5,9 @@ import { Colonne, Grille } from '../../shared/grille';
 import { Icon } from '../../shared/icon';
 import { Enregistrement } from './general';
 
+/** Formats de contenu d'un message (contrat) ou d'un échange dans un flux. */
+const FORMATS = ['JSON', 'XML', 'CSV', 'TXT', 'EDIFACT', 'PDF'];
+
 /**
  * Catalogue de messages (contrats réutilisables : type, format JSON / XML / CSV / TXT, élément racine, champs et chemins)
  * et flux (usage ordonné des messages entre acteurs) — le contrat est séparé de son usage (dossier v4.2, §10.3).
@@ -39,7 +42,7 @@ import { Enregistrement } from './general';
         <nx-grille [colonnes]="colUsages()" [donnees]="$any(f.messages)" [modele]="{ interactionPattern: 'ASYNC' }" [lectureSeule]="!modifiable()"
           (enregistrer)="enregistrerUsages(f, $any($event.lignes), $event.motif)" />
       </div>
-    } @else { <p class="muted small">{{ 'Sélectionnez un flux pour éditer ses messages (émetteur, destinataire, rang, réponse, délai).' | t }}</p> }
+    } @else { <p class="muted small">{{ 'Sélectionnez un flux pour éditer ses messages (émetteur, destinataire, rang, réponse, délai, format de l\\'échange).' | t }}</p> }
   `,
   styles: [`:host { display: flex; flex-direction: column; gap: 16px; }`],
 })
@@ -55,7 +58,7 @@ export class OngletMessages {
   protected readonly colMessages: Colonne[] = [
     { cle: 'code', libelle: 'Code', mono: true, largeur: 210 }, { cle: 'labelFr', libelle: 'Libellé (FR)', largeur: 230 },
     { cle: 'messageType', libelle: 'Type', type: 'select', options: ['REQUEST', 'RESPONSE', 'NOTIFICATION', 'DECISION', 'PAYMENT', 'ACKNOWLEDGEMENT', 'ERROR', 'REPORT', 'DOCUMENT'].map(x => ({ valeur: x, libelle: x })), largeur: 150 },
-    { cle: 'contentFormat', libelle: 'Format', type: 'select', options: ['JSON', 'XML', 'CSV', 'TXT', 'EDIFACT', 'PDF'].map(x => ({ valeur: x, libelle: x })), largeur: 100 },
+    { cle: 'contentFormat', libelle: 'Format', type: 'select', options: FORMATS.map(x => ({ valeur: x, libelle: x })), largeur: 100 },
     { cle: 'rootElement', libelle: 'Élément racine', mono: true, largeur: 160 }, { cle: 'standardRef', libelle: 'Référence normative', largeur: 230 },
     { cle: 'sensitivity', libelle: 'Sensibilité', type: 'select', options: ['public', 'internal', 'confidential', 'restricted', 'personal_data'].map(x => ({ valeur: x, libelle: x })), largeur: 140 },
     { cle: 'description', libelle: 'Description', type: 'textarea', largeur: 260 }];
@@ -72,6 +75,8 @@ export class OngletMessages {
       { cle: 'messageCode', libelle: 'Message', type: 'select', options: this.v().messages.map(m => ({ valeur: m.code, libelle: m.code })), largeur: 230 },
       { cle: 'senderActor', libelle: 'Émetteur', type: 'select', options: acteurs, largeur: 170 }, { cle: 'receiverActor', libelle: 'Destinataire', type: 'select', options: acteurs, largeur: 170 },
       { cle: 'interactionPattern', libelle: 'Interaction', type: 'select', options: ['SYNC', 'ASYNC', 'NOTIFY'].map(x => ({ valeur: x, libelle: x })), largeur: 110 },
+      { cle: 'contentFormat', libelle: 'Format de l\'échange', type: 'select', options: FORMATS.map(x => ({ valeur: x, libelle: x })), largeur: 130,
+        aide: 'Vide : format du message dans le catalogue ; sinon format propre à cet échange (ex. EDIFACT vers la douane).' },
       { cle: 'responseToSeq', libelle: 'Réponse au rang', type: 'number', largeur: 110 }, { cle: 'timeoutHours', libelle: 'Délai (h)', type: 'number', largeur: 90 }];
   });
 
@@ -81,7 +86,7 @@ export class OngletMessages {
   }
 
   protected enregistrerUsages(f: Flow, usages: FlowMessage[], motif: string): void {
-    const flux = this.v().flows.map(x => x.code === f.code ? { ...x, messages: usages.map((u, i) => ({ ...u, seq: u.seq || i + 1 })) } : x);
+    const flux = this.v().flows.map(x => x.code === f.code ? { ...x, messages: usages.map((u, i) => ({ ...u, seq: u.seq || i + 1, contentFormat: u.contentFormat || null })) } : x);
     this.enregistrer.emit({ partie: 'flows', corps: flux, motif });
   }
 }

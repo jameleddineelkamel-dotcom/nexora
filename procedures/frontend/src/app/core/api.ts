@@ -33,7 +33,8 @@ export interface MessageDef {
   code: string; labelFr: string; labelEn: string | null; messageType: string; contentFormat: string; rootElement: string | null; standardRef: string | null;
   schemaText: string | null; sensitivity: string; description: string | null; fields: MessageField[];
 }
-export interface FlowMessage { seq: number; messageCode: string; senderActor: string; receiverActor: string; interactionPattern: string; responseToSeq: number | null; timeoutHours: number | null; }
+/** Usage d'un message dans un flux ; contentFormat vide : format du contrat du message. */
+export interface FlowMessage { seq: number; messageCode: string; senderActor: string; receiverActor: string; interactionPattern: string; responseToSeq: number | null; timeoutHours: number | null; contentFormat?: string | null; }
 export interface Flow { code: string; labelFr: string; labelEn: string | null; sortOrder: number; messages: FlowMessage[]; }
 export interface ProcessModel { processKey: string; bpmnXml: string; updatedAt: string | null; updatedBy: string | null; }
 export interface BusinessRule { code: string; text: string; source: string | null; drlRule: string | null; }

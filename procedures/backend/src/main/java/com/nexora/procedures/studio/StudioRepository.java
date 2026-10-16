@@ -212,11 +212,11 @@ public class StudioRepository {
     public List<Flow> flux(long id) {
         Map<String, List<FlowMessage>> messages = new HashMap<>();
         jdbc.sql("""
-                select flow_code, seq, message_code, sender_actor, receiver_actor, interaction_pattern, response_to_seq, timeout_hours
+                select flow_code, seq, message_code, sender_actor, receiver_actor, interaction_pattern, response_to_seq, timeout_hours, content_format
                   from studio.flow_message where version_id = :v order by flow_code, seq
                 """).param("v", id).query((rs, i) -> messages.computeIfAbsent(rs.getString(1), k -> new ArrayList<>())
                 .add(new FlowMessage(rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
-                        (Integer) rs.getObject(7), (Integer) rs.getObject(8)))).list();
+                        (Integer) rs.getObject(7), (Integer) rs.getObject(8), rs.getString(9)))).list();
         return jdbc.sql("select code, label_fr, label_en, sort_order from studio.procedure_flow where version_id = :v order by sort_order, code")
                 .param("v", id).query((rs, i) -> new Flow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getInt(4),
                         messages.getOrDefault(rs.getString(1), List.of()))).list();
@@ -375,11 +375,11 @@ public class StudioRepository {
             for (FlowMessage m : f.messages() == null ? List.<FlowMessage>of() : f.messages().stream().sorted(Comparator.comparingInt(FlowMessage::seq)).toList())
                 jdbc.sql("""
                         insert into studio.flow_message (version_id, flow_code, seq, message_code, sender_actor, receiver_actor, interaction_pattern,
-                          response_to_seq, timeout_hours)
-                        values (:v, :f, :s, :m, :se, :re, :ip, :rt, :to)
+                          response_to_seq, timeout_hours, content_format)
+                        values (:v, :f, :s, :m, :se, :re, :ip, :rt, :to, :fmt)
                         """).param("v", id).param("f", f.code()).param("s", m.seq()).param("m", m.messageCode()).param("se", m.senderActor())
                         .param("re", m.receiverActor()).param("ip", m.interactionPattern() == null ? "ASYNC" : m.interactionPattern())
-                        .param("rt", m.responseToSeq()).param("to", m.timeoutHours()).update();
+                        .param("rt", m.responseToSeq()).param("to", m.timeoutHours()).param("fmt", vide(m.contentFormat())).update();
         }
     }
 

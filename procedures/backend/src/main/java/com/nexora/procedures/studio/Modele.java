@@ -73,8 +73,27 @@ public final class Modele {
     public record MessageDef(String code, String labelFr, String labelEn, String messageType, String contentFormat, String rootElement,
                              String standardRef, String schemaText, String sensitivity, String description, List<MessageField> fields) {}
 
+    /** Formats de contenu d'un message (contrainte des tables studio.message_definition, studio.flow_message et wfe.message). */
+    public static final List<String> FORMATS = List.of("JSON", "XML", "CSV", "TXT", "EDIFACT", "PDF");
+
+    /**
+     * Usage d'un message dans un flux. {@code contentFormat} est facultatif : vide, le message est échangé au format de
+     * son contrat (MessageDef) ; renseigné, il le remplace pour cet échange seulement (ex. contrat JSON transmis en
+     * EDIFACT à la douane).
+     */
     public record FlowMessage(int seq, String messageCode, String senderActor, String receiverActor, String interactionPattern,
-                              Integer responseToSeq, Integer timeoutHours) {}
+                              Integer responseToSeq, Integer timeoutHours, String contentFormat) {
+
+        public FlowMessage(int seq, String messageCode, String senderActor, String receiverActor, String interactionPattern,
+                           Integer responseToSeq, Integer timeoutHours) {
+            this(seq, messageCode, senderActor, receiverActor, interactionPattern, responseToSeq, timeoutHours, null);
+        }
+
+        /** Format effectif de l'échange : celui du flux s'il est renseigné, sinon celui du message. */
+        public String formatEffectif(MessageDef m) {
+            return contentFormat != null && !contentFormat.isBlank() ? contentFormat : m == null ? null : m.contentFormat();
+        }
+    }
 
     public record Flow(String code, String labelFr, String labelEn, int sortOrder, List<FlowMessage> messages) {}
 

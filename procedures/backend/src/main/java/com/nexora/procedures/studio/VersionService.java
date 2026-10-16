@@ -134,8 +134,8 @@ public class VersionService {
             }
             case "documents" -> repo.pieces(id, liste(corps, RequiredDocument.class));
             case "fees" -> repo.frais(id, liste(corps, FeeItem.class));
-            case "messages" -> repo.messages(id, liste(corps, MessageDef.class));
-            case "flows" -> repo.flux(id, liste(corps, Flow.class));
+            case "messages" -> repo.messages(id, formatsMessages(liste(corps, MessageDef.class)));
+            case "flows" -> repo.flux(id, formatsFlux(liste(corps, Flow.class)));
             case "process" -> repo.processus(id, json.mapper().convertValue(corps, ProcessModel.class), auteur);
             case "rules" -> repo.regles(id, json.mapper().convertValue(corps, RuleSet.class), auteur);
             case "deliverables" -> repo.livrables(id, liste(corps, Deliverable.class));
@@ -165,6 +165,41 @@ public class VersionService {
         if (retenus.isEmpty()) ihm.remove("champs"); else ihm.put("champs", retenus);
         if (ihm.isEmpty()) s.remove("ihm"); else s.put("ihm", ihm);
         return s;
+    }
+
+    /** Catalogue de messages : chaque message déclare un format de contenu connu ({@link Modele#FORMATS}). */
+    static List<MessageDef> formatsMessages(List<MessageDef> messages) {
+        List<String> erreurs = new ArrayList<>();
+        for (MessageDef m : messages)
+            if (m.contentFormat() == null || m.contentFormat().isBlank())
+                erreurs.add("Format manquant pour le message " + m.code() + " (attendu : " + String.join(", ", Modele.FORMATS) + ").");
+            else if (!Modele.FORMATS.contains(m.contentFormat()))
+                erreurs.add("Format inconnu pour le message " + m.code() + " : " + m.contentFormat() + " (attendu : " + String.join(", ", Modele.FORMATS) + ").");
+        if (!erreurs.isEmpty()) throw ProceduresException.invalide(erreurs);
+        return messages;
+    }
+
+    /**
+     * Flux : le format d'un message dans un flux est facultatif (vide = format du message, qui suit alors un changement
+     * du contrat) ; renseigné, il doit être connu.
+     */
+    static List<Flow> formatsFlux(List<Flow> flux) {
+        List<String> erreurs = new ArrayList<>();
+        List<Flow> r = new ArrayList<>();
+        for (Flow f : flux) {
+            List<FlowMessage> usages = new ArrayList<>();
+            for (FlowMessage u : f.messages() == null ? List.<FlowMessage>of() : f.messages()) {
+                String fmt = u.contentFormat() == null || u.contentFormat().isBlank() ? null : u.contentFormat();
+                if (fmt != null && !Modele.FORMATS.contains(fmt))
+                    erreurs.add("Format inconnu pour le message " + u.messageCode() + " (rang " + u.seq() + ") du flux " + f.code() + " : " + fmt
+                            + " (attendu : vide pour le format du message, ou " + String.join(", ", Modele.FORMATS) + ").");
+                usages.add(new FlowMessage(u.seq(), u.messageCode(), u.senderActor(), u.receiverActor(), u.interactionPattern(),
+                        u.responseToSeq(), u.timeoutHours(), fmt));
+            }
+            r.add(new Flow(f.code(), f.labelFr(), f.labelEn(), f.sortOrder(), usages));
+        }
+        if (!erreurs.isEmpty()) throw ProceduresException.invalide(erreurs);
+        return r;
     }
 
     private <T> List<T> liste(Object corps, Class<T> type) {

@@ -362,4 +362,10 @@ export const EN: Record<string, string> = {
   "Ajouter une ligne": "Add a row",
   "Lieux de traitement": "Processing locations",
   "Localisation (carte)": "Location (map)",
+  // Format des messages dans les flux
+  "Format de l'échange": "Exchange format",
+  "Vide : format du message dans le catalogue ; sinon format propre à cet échange (ex. EDIFACT vers la douane).":
+    "Empty: format of the message in the catalogue; otherwise a format specific to this exchange (e.g. EDIFACT to customs).",
+  "Sélectionnez un flux pour éditer ses messages (émetteur, destinataire, rang, réponse, délai, format de l'échange).":
+    "Select a flow to edit its messages (sender, recipient, rank, response, timeout, exchange format).",
 };
